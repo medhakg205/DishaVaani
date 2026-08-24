@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "430937452151",
+    "firebase_url": "https://dishavaani-db373-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "dishavaani-db373",
+    "storage_bucket": "dishavaani-db373.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:430937452151:android:d074954f18a01f174e6072",
+        "android_client_info": {
+          "package_name": "com.example.disha_vaani"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCeuoPg22khnJAKo0tI5VaHbXCAKjx1r1Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
