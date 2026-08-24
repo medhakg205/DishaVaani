@@ -1,4 +1,3 @@
-//basic class structure for each poi, final means cant be changed
 class Poi {
   final String id;
   final String monumentId;
@@ -20,14 +19,18 @@ class Poi {
     required this.scriptText,
   });
 
-  factory Poi.fromFirestore(String id, Map<String, dynamic> data) {
+  factory Poi.fromFirestore(
+    String id,
+    Map<String, dynamic> data,
+  ) {
     return Poi(
       id: id,
       monumentId: (data['monumentId'] as String? ?? '').trim(),
       name: data['name'] as String? ?? 'Unnamed POI',
       lat: (data['lat'] as num?)?.toDouble() ?? 0.0,
       long: (data['long'] as num?)?.toDouble() ?? 0.0,
-      bearingTolerance: (data['bearingTolerance'] as num?)?.toDouble() ?? 25.0,
+      bearingTolerance:
+          (data['bearingTolerance'] as num?)?.toDouble() ?? 25.0,
       audioUrl: data['audioUrl'] as String? ?? '',
       scriptText: data['scriptText'] as String? ?? '',
     );
