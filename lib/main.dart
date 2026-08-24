@@ -1,3 +1,4 @@
+import 'admin_dashboard.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -35,7 +36,7 @@ class DishaVaaniApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: maroon),
         useMaterial3: true,
       ),
-      home: const SplashScreen(),
+      home: const AdminDashboard(),
     );
   }
 }
