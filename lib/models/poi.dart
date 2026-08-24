@@ -1,6 +1,7 @@
 //basic class structure for each poi, final means cant be changed
 class Poi {
   final String id;
+  final String monumentId;
   final String name;
   final double lat;
   final double long;
@@ -8,9 +9,9 @@ class Poi {
   final String audioUrl;
   final String scriptText;
 
-// constructor- 
-  Poi({
+  const Poi({
     required this.id,
+    required this.monumentId,
     required this.name,
     required this.lat,
     required this.long,
@@ -19,16 +20,16 @@ class Poi {
     required this.scriptText,
   });
 
-//translator function-reads each expected key out of that map that firebase sends and builds a proper Poi object from it.
   factory Poi.fromFirestore(String id, Map<String, dynamic> data) {
     return Poi(
       id: id,
-      name: data['name'] ?? '',
-      lat: (data['lat'] ?? 0).toDouble(),
-      long: (data['long'] ?? 0).toDouble(),
-      bearingTolerance: (data['bearingTolerance'] ?? 25).toDouble(),
-      audioUrl: data['audioUrl'] ?? '',
-      scriptText: data['scriptText'] ?? '',
+      monumentId: (data['monumentId'] as String? ?? '').trim(),
+      name: data['name'] as String? ?? 'Unnamed POI',
+      lat: (data['lat'] as num?)?.toDouble() ?? 0.0,
+      long: (data['long'] as num?)?.toDouble() ?? 0.0,
+      bearingTolerance: (data['bearingTolerance'] as num?)?.toDouble() ?? 25.0,
+      audioUrl: data['audioUrl'] as String? ?? '',
+      scriptText: data['scriptText'] as String? ?? '',
     );
   }
 }
