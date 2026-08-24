@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
+import 'models/poi.dart';
 
-void main() => runApp(const DishaApp());
+void main() => runApp(const DishaVaaniApp());
 
-// Heritage color palette
 const Color maroon = Color(0xFF6B2737);
 const Color terracotta = Color(0xFFC1652F);
 const Color gold = Color(0xFFD4A24E);
 const Color sandstone = Color(0xFFF5EFE6);
 
-class DishaApp extends StatelessWidget {
-  const DishaApp({super.key});
+class DishaVaaniApp extends StatelessWidget {
+  const DishaVaaniApp({super.key});
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -48,7 +48,7 @@ class SplashScreen extends StatelessWidget {
               const SizedBox(height: 24),
               const Text('DISHAVAANI',
                   style: TextStyle(
-                      fontSize: 34, fontWeight: FontWeight.bold, color: maroon, letterSpacing: 4)),
+                      fontSize: 30, fontWeight: FontWeight.bold, color: maroon, letterSpacing: 3)),
               const SizedBox(height: 12),
               const Text(
                 'Point your phone. Listen in your language.\nNo QR codes.',
@@ -67,7 +67,7 @@ class SplashScreen extends StatelessWidget {
                   ),
                   onPressed: () {
                     Navigator.push(context,
-                        MaterialPageRoute(builder: (_) => const NowPlayingScreen()));
+                        MaterialPageRoute(builder: (_) => const HomeScreen()));
                   },
                   child: const Text('ALLOW LOCATION + COMPASS'),
                 ),
@@ -94,24 +94,17 @@ class SplashScreen extends StatelessWidget {
   }
 }
 
-// ---------- SCREEN 4: Now Playing / Queue ----------
-class NowPlayingScreen extends StatefulWidget {
-  const NowPlayingScreen({super.key});
-  @override
-  State<NowPlayingScreen> createState() => _NowPlayingScreenState();
-}
-
-class _NowPlayingScreenState extends State<NowPlayingScreen> {
-  bool isPlaying = false;
-
-  final List<Map<String, String>> queue = [
-    {'name': 'Ancient Temple', 'dist': '18m'},
-    {'name': 'Watch Tower', 'dist': '32m'},
-    {'name': 'Old Stepwell', 'dist': '47m'},
-  ];
+// ---------- SCREEN 2: Home / Select Site ----------
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final sites = [
+      {'name': 'Qutub Minar Complex', 'dist': '1.2 km'},
+      {'name': 'Hauz Khas Fort', 'dist': '4.8 km'},
+    ];
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: maroon,
@@ -122,7 +115,119 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Now playing card
+            Container(
+              height: 180,
+              decoration: BoxDecoration(
+                color: gold.withOpacity(0.25),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Center(
+                child: Icon(Icons.map, size: 60, color: maroon),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text('NEARBY MONUMENTS',
+                style: TextStyle(fontSize: 12, color: Colors.black54, letterSpacing: 0.5)),
+            const SizedBox(height: 10),
+            ...sites.map((site) => Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.black12),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: sandstone,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.account_balance, color: terracotta),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(site['name']!,
+                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                      Text(site['dist']!, style: const TextStyle(color: Colors.black45)),
+                    ],
+                  ),
+                )),
+            const Spacer(),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: maroon,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () {
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const NowPlayingScreen()));
+                },
+                child: const Text('START LISTENING →'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------- SCREEN 4: Now Playing / Queue ----------
+class NowPlayingScreen extends StatefulWidget {
+  const NowPlayingScreen({super.key});
+  @override
+  State<NowPlayingScreen> createState() => _NowPlayingScreenState();
+}
+
+class _NowPlayingScreenState extends State<NowPlayingScreen> {
+  bool isPlaying = false;
+
+  final Poi currentPoi = Poi(
+    id: '1',
+    name: 'West Wall Carving',
+    lat: 28.658,
+    long: 77.2446,
+    bearingTolerance: 20,
+    audioUrl: 'poi_westwall.mp3',
+    scriptText: 'Placeholder for West Wall',
+  );
+
+  final List<Poi> queue = [
+    Poi(id: '2', name: 'Ancient Temple', lat: 28.659, long: 77.245, bearingTolerance: 20, audioUrl: '', scriptText: ''),
+    Poi(id: '3', name: 'Watch Tower', lat: 28.660, long: 77.246, bearingTolerance: 20, audioUrl: '', scriptText: ''),
+    Poi(id: '4', name: 'Old Stepwell', lat: 28.661, long: 77.247, bearingTolerance: 20, audioUrl: '', scriptText: ''),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: maroon,
+        title: const Text('DishaVaani', style: TextStyle(color: Colors.white)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.list, color: Colors.white),
+            onPressed: () {
+              Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const ManualPoiListScreen()));
+            },
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -151,8 +256,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       children: [
                         const Text('Now approaching',
                             style: TextStyle(fontSize: 12, color: Colors.black54)),
-                        const Text('Old Fort Gate',
-                            style: TextStyle(
+                        Text(currentPoi.name,
+                            style: const TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold, color: maroon)),
                         const SizedBox(height: 6),
                         LinearProgressIndicator(
@@ -200,14 +305,96 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Text(poi['name']!,
-                              style: const TextStyle(fontWeight: FontWeight.w600)),
+                          child: Text(poi.name, style: const TextStyle(fontWeight: FontWeight.w600)),
                         ),
-                        Text(poi['dist']!, style: const TextStyle(color: Colors.black45)),
                       ],
                     ),
                   );
                 },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------- SCREEN 5: Manual POI List ----------
+class ManualPoiListScreen extends StatelessWidget {
+  const ManualPoiListScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final pois = [
+      'West Wall Carving',
+      'Ancient Temple',
+      'Watch Tower',
+      'Old Stepwell',
+    ];
+
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: maroon,
+        title: const Text('All POIs', style: TextStyle(color: Colors.white)),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.black12),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.search, color: Colors.black45),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Search POIs',
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView.separated(
+                itemCount: pois.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) => Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.black12),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: sandstone,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(Icons.temple_hindu, color: terracotta),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(pois[index],
+                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ],
