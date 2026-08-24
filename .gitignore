@@ -47,7 +47,5 @@ app.*.map.json
 # Widget Preview related
 .widget_preview/
 
-# Ignore generated Firebase config with API keys (optional for private repos, recommended for public)
-lib/firebase_options.dart
 .dart_tool/
 build/

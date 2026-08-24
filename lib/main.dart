@@ -1,9 +1,11 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'firebase_options.dart';
 import 'models/poi.dart';
 import 'services/poi_service.dart';
+import 'admin_dashboard.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,7 +34,7 @@ class DishaVaaniApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: maroon),
         useMaterial3: true,
       ),
-      home: const SplashScreen(),
+      home: kIsWeb ? const AdminDashboard() : const SplashScreen(),
     );
   }
 }

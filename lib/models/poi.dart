@@ -6,6 +6,7 @@ class Poi {
   final double lat;
   final double long;
   final double bearingTolerance;
+  final double compassHeading;
   final String audioUrl;
   final String scriptText;
 
@@ -16,6 +17,7 @@ class Poi {
     required this.lat,
     required this.long,
     required this.bearingTolerance,
+    required this.compassHeading,
     required this.audioUrl,
     required this.scriptText,
   });
@@ -28,6 +30,7 @@ class Poi {
       lat: (data['lat'] as num?)?.toDouble() ?? 0.0,
       long: (data['long'] as num?)?.toDouble() ?? 0.0,
       bearingTolerance: (data['bearingTolerance'] as num?)?.toDouble() ?? 25.0,
+      compassHeading: (data['compassHeading'] as num?)?.toDouble() ?? 0.0,
       audioUrl: data['audioUrl'] as String? ?? '',
       scriptText: data['scriptText'] as String? ?? '',
     );
