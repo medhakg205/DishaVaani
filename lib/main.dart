@@ -1,3 +1,4 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
@@ -8,7 +9,9 @@ import 'services/poi_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   runApp(const DishaVaaniApp());
 }
@@ -38,6 +41,7 @@ class DishaVaaniApp extends StatelessWidget {
 }
 
 // ---------- SCREEN 1: Splash ----------
+
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
@@ -57,7 +61,11 @@ class SplashScreen extends StatelessWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: maroon, width: 3),
                 ),
-                child: const Icon(Icons.explore, size: 80, color: terracotta),
+                child: const Icon(
+                  Icons.explore,
+                  size: 80,
+                  color: terracotta,
+                ),
               ),
               const SizedBox(height: 24),
               const Text(
@@ -73,7 +81,10 @@ class SplashScreen extends StatelessWidget {
               const Text(
                 'Point your phone. Listen in your language.\nNo QR codes.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 15, color: Colors.black54),
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.black54,
+                ),
               ),
               const SizedBox(height: 40),
               SizedBox(
@@ -90,7 +101,9 @@ class SplashScreen extends StatelessWidget {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const HomeScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => const HomeScreen(),
+                      ),
                     );
                   },
                   child: const Text('ALLOW LOCATION + COMPASS'),
@@ -251,6 +264,7 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
 }
 
 // ---------- SCREEN 2: Home / Select Site ----------
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -284,8 +298,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
       for (final poi in pois) {
         final monumentId = poi.monumentId.trim();
+
         if (monumentId.isNotEmpty) {
-          poiCounts[monumentId] = (poiCounts[monumentId] ?? 0) + 1;
+          poiCounts[monumentId] =
+              (poiCounts[monumentId] ?? 0) + 1;
         }
       }
 
@@ -293,7 +309,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         monumentPoiCounts = poiCounts;
-        selectedMonumentId = poiCounts.isNotEmpty ? poiCounts.keys.first : null;
+        selectedMonumentId =
+            poiCounts.isNotEmpty ? poiCounts.keys.first : null;
         isLoading = false;
       });
     } catch (error) {
@@ -311,7 +328,10 @@ class _HomeScreenState extends State<HomeScreen> {
         .replaceAll('_', ' ')
         .split(' ')
         .where((word) => word.isNotEmpty)
-        .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
+        .map(
+          (word) =>
+              '${word[0].toUpperCase()}${word.substring(1)}',
+        )
         .join(' ');
   }
 
@@ -335,7 +355,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Center(
-                child: Icon(Icons.map, size: 60, color: maroon),
+                child: Icon(
+                  Icons.map,
+                  size: 60,
+                  color: maroon,
+                ),
               ),
             ),
             const SizedBox(height: 20),
@@ -351,7 +375,9 @@ class _HomeScreenState extends State<HomeScreen> {
             if (isLoading)
               const Expanded(
                 child: Center(
-                  child: CircularProgressIndicator(color: terracotta),
+                  child: CircularProgressIndicator(
+                    color: terracotta,
+                  ),
                 ),
               )
             else if (errorMessage != null)
@@ -386,9 +412,11 @@ class _HomeScreenState extends State<HomeScreen> {
             else
               ...monumentPoiCounts.entries.map(
                 (entry) => InkWell(
-                  onTap: () => setState(() {
-                    selectedMonumentId = entry.key;
-                  }),
+                  onTap: () {
+                    setState(() {
+                      selectedMonumentId = entry.key;
+                    });
+                  },
                   borderRadius: BorderRadius.circular(10),
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 12),
@@ -421,17 +449,25 @@ class _HomeScreenState extends State<HomeScreen> {
                         Expanded(
                           child: Text(
                             _monumentName(entry.key),
-                            style: const TextStyle(fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                         Text(
-                          '${entry.value} POI${entry.value == 1 ? '' : 's'}',
-                          style: const TextStyle(color: Colors.black45),
+                          '${entry.value} POI'
+                          '${entry.value == 1 ? '' : 's'}',
+                          style: const TextStyle(
+                            color: Colors.black45,
+                          ),
                         ),
                         if (selectedMonumentId == entry.key)
                           const Padding(
                             padding: EdgeInsets.only(left: 8),
-                            child: Icon(Icons.check, color: terracotta),
+                            child: Icon(
+                              Icons.check,
+                              color: terracotta,
+                            ),
                           ),
                       ],
                     ),
@@ -562,10 +598,14 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
 }
 
 // ---------- SCREEN 4: Now Playing / Queue ----------
+
 class NowPlayingScreen extends StatefulWidget {
   final String monumentId;
 
-  const NowPlayingScreen({super.key, this.monumentId = 'qutub_minar'});
+  const NowPlayingScreen({
+    super.key,
+    this.monumentId = 'qutub_minar',
+  });
 
   @override
   State<NowPlayingScreen> createState() => _NowPlayingScreenState();
@@ -573,6 +613,7 @@ class NowPlayingScreen extends StatefulWidget {
 
 class _NowPlayingScreenState extends State<NowPlayingScreen> {
   final PoiService _poiService = PoiService();
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   bool isPlaying = false;
   bool isLoading = true;
@@ -584,7 +625,30 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   @override
   void initState() {
     super.initState();
+
+    _audioPlayer.onPlayerStateChanged.listen((state) {
+      if (!mounted) return;
+
+      setState(() {
+        isPlaying = state == PlayerState.playing;
+      });
+    });
+
+    _audioPlayer.onPlayerComplete.listen((_) {
+      if (!mounted) return;
+
+      setState(() {
+        isPlaying = false;
+      });
+    });
+
     _loadPois();
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
   }
 
   Future<void> _loadPois() async {
@@ -594,7 +658,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     });
 
     try {
-      final pois = await _poiService.fetchPoisByMonument(widget.monumentId);
+      final pois = await _poiService.fetchPoisByMonument(
+        widget.monumentId,
+      );
 
       if (!mounted) return;
 
@@ -613,12 +679,58 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
   }
 
-  void _selectPoi(Poi poi) {
+  Future<void> _togglePlayback(Poi poi) async {
+    final audioUrl = poi.audioUrl.trim();
+
+    if (audioUrl.isEmpty) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No audio URL is available for this POI.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    try {
+      if (isPlaying) {
+        await _audioPlayer.pause();
+      } else {
+        await _audioPlayer.play(
+          UrlSource(audioUrl),
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        isPlaying = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not play audio: $error'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _selectPoi(Poi poi) async {
+    await _audioPlayer.stop();
+
+    if (!mounted) return;
+
     setState(() {
       final updatedPois = [
         currentPoi,
         ...queue,
-      ].whereType<Poi>().where((item) => item.id != poi.id).toList();
+      ]
+          .whereType<Poi>()
+          .where((item) => item.id != poi.id)
+          .toList();
 
       currentPoi = poi;
       queue = updatedPois;
@@ -631,7 +743,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     if (isLoading) {
       return Scaffold(
         appBar: _appBar(),
-        body: const Center(child: CircularProgressIndicator(color: terracotta)),
+        body: const Center(
+          child: CircularProgressIndicator(
+            color: terracotta,
+          ),
+        ),
       );
     }
 
@@ -644,7 +760,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.cloud_off, color: terracotta, size: 54),
+                const Icon(
+                  Icons.cloud_off,
+                  color: terracotta,
+                  size: 54,
+                ),
                 const SizedBox(height: 16),
                 const Text(
                   'Could not load POIs from Firebase.',
@@ -659,7 +779,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 Text(
                   errorMessage!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.black54),
+                  style: const TextStyle(
+                    color: Colors.black54,
+                  ),
                 ),
                 const SizedBox(height: 20),
                 ElevatedButton.icon(
@@ -730,12 +852,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   ? const Center(
                       child: Text(
                         'No other POIs are currently in the queue.',
-                        style: TextStyle(color: Colors.black54),
+                        style: TextStyle(
+                          color: Colors.black54,
+                        ),
                       ),
                     )
                   : ListView.separated(
                       itemCount: queue.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final queuedPoi = queue[index];
 
@@ -747,7 +872,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: Colors.black12),
+                              border: Border.all(
+                                color: Colors.black12,
+                              ),
                             ),
                             child: Row(
                               children: [
@@ -755,7 +882,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                   backgroundColor: sandstone,
                                   child: Text(
                                     '${index + 2}',
-                                    style: const TextStyle(color: maroon),
+                                    style: const TextStyle(
+                                      color: maroon,
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -770,11 +899,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
-                                      if (queuedPoi.scriptText.isNotEmpty)
+                                      if (queuedPoi
+                                          .scriptText
+                                          .isNotEmpty)
                                         Text(
                                           queuedPoi.scriptText,
                                           maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+                                          overflow:
+                                              TextOverflow.ellipsis,
                                           style: const TextStyle(
                                             fontSize: 12,
                                             color: Colors.black54,
@@ -783,7 +915,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                     ],
                                   ),
                                 ),
-                                const Icon(Icons.play_arrow, color: terracotta),
+                                const Icon(
+                                  Icons.play_arrow,
+                                  color: terracotta,
+                                ),
                               ],
                             ),
                           ),
@@ -800,11 +935,17 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   AppBar _appBar({VoidCallback? onListPressed}) {
     return AppBar(
       backgroundColor: maroon,
-      title: const Text('DishaVaani', style: TextStyle(color: Colors.white)),
+      title: const Text(
+        'DishaVaani',
+        style: TextStyle(color: Colors.white),
+      ),
       actions: [
         if (onListPressed != null)
           IconButton(
-            icon: const Icon(Icons.list, color: Colors.white),
+            icon: const Icon(
+              Icons.list,
+              color: Colors.white,
+            ),
             onPressed: onListPressed,
           ),
       ],
@@ -817,9 +958,16 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: terracotta, width: 2),
+        border: Border.all(
+          color: terracotta,
+          width: 2,
+        ),
         boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 3)),
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 6,
+            offset: Offset(0, 3),
+          ),
         ],
       ),
       child: Row(
@@ -831,7 +979,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               color: gold.withOpacity(0.3),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.temple_hindu, color: maroon, size: 32),
+            child: const Icon(
+              Icons.temple_hindu,
+              color: maroon,
+              size: 32,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -840,7 +992,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               children: [
                 const Text(
                   'Now approaching',
-                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.black54,
+                  ),
                 ),
                 Text(
                   poi.name,
@@ -856,7 +1011,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     poi.scriptText,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.black54,
+                    ),
                   ),
                 const SizedBox(height: 8),
                 LinearProgressIndicator(
@@ -871,24 +1029,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           IconButton(
             iconSize: 40,
             icon: Icon(
-              isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
+              isPlaying
+                  ? Icons.pause_circle_filled
+                  : Icons.play_circle_filled,
               color: terracotta,
             ),
-            onPressed: () {
-              setState(() {
-                isPlaying = !isPlaying;
-              });
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    isPlaying
-                        ? 'Playback UI enabled for ${poi.name}.'
-                        : 'Playback paused.',
-                  ),
-                ),
-              );
-            },
+            onPressed: () => _togglePlayback(poi),
           ),
         ],
       ),
@@ -897,6 +1043,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 }
 
 // ---------- SCREEN 5: Manual POI List ----------
+
 class ManualPoiListScreen extends StatelessWidget {
   final List<Poi> pois;
   final ValueChanged<Poi> onPoiSelected;
@@ -928,7 +1075,10 @@ class ManualPoiListScreen extends StatelessWidget {
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.search, color: Colors.black45),
+                  Icon(
+                    Icons.search,
+                    color: Colors.black45,
+                  ),
                   SizedBox(width: 8),
                   Expanded(
                     child: TextField(
@@ -944,10 +1094,13 @@ class ManualPoiListScreen extends StatelessWidget {
             const SizedBox(height: 16),
             Expanded(
               child: pois.isEmpty
-                  ? const Center(child: Text('No POIs available.'))
+                  ? const Center(
+                      child: Text('No POIs available.'),
+                    )
                   : ListView.separated(
                       itemCount: pois.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final poi = pois[index];
 
@@ -962,7 +1115,9 @@ class ManualPoiListScreen extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: Colors.black12),
+                              border: Border.all(
+                                color: Colors.black12,
+                              ),
                             ),
                             child: Row(
                               children: [
@@ -971,7 +1126,8 @@ class ManualPoiListScreen extends StatelessWidget {
                                   height: 48,
                                   decoration: BoxDecoration(
                                     color: sandstone,
-                                    borderRadius: BorderRadius.circular(6),
+                                    borderRadius:
+                                        BorderRadius.circular(6),
                                   ),
                                   child: const Icon(
                                     Icons.temple_hindu,
@@ -994,7 +1150,8 @@ class ManualPoiListScreen extends StatelessWidget {
                                         Text(
                                           poi.scriptText,
                                           maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
+                                          overflow:
+                                              TextOverflow.ellipsis,
                                           style: const TextStyle(
                                             fontSize: 12,
                                             color: Colors.black54,
@@ -1003,7 +1160,10 @@ class ManualPoiListScreen extends StatelessWidget {
                                     ],
                                   ),
                                 ),
-                                const Icon(Icons.play_arrow, color: terracotta),
+                                const Icon(
+                                  Icons.play_arrow,
+                                  color: terracotta,
+                                ),
                               ],
                             ),
                           ),
