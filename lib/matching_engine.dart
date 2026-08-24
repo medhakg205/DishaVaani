@@ -144,8 +144,8 @@ void main() {
       lat: 12.97165,
       long: 77.59468,
       bearingTolerance: 25,
-      audioUrl: '',
-      scriptText: '',
+      audioUrls: {},
+      scripts: {},
     ),
     const Poi(
       id: 'ancient_temple',
@@ -154,8 +154,8 @@ void main() {
       lat: 12.9720,
       long: 77.5950,
       bearingTolerance: 25,
-      audioUrl: '',
-      scriptText: '',
+      audioUrls: {},
+      scripts: {},
     ),
     const Poi(
       id: 'watch_tower',
@@ -164,8 +164,8 @@ void main() {
       lat: 12.97162,
       long: 77.59465,
       bearingTolerance: 25,
-      audioUrl: '',
-      scriptText: '',
+      audioUrls: {},
+      scripts: {},
     ),
   ];
 
