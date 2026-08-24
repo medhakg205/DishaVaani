@@ -1,20 +1,14 @@
 import 'dart:math';
 
-class POI {
-  final String name;
-  final double lat;
-  final double lon;
-
-  POI(this.name, this.lat, this.lon);
-}
+import 'models/poi.dart';
 
 class MatchResult {
-  final POI? singleMatch;
-  final List<POI> queue;
+  final Poi? singleMatch;
+  final List<Poi> queue;
   final bool hasMatch;
 
   MatchResult({this.singleMatch, this.queue = const []})
-      : hasMatch = singleMatch != null || queue.isNotEmpty;
+    : hasMatch = singleMatch != null || queue.isNotEmpty;
 }
 
 double haversineDistance(double lat1, double lon1, double lat2, double lon2) {
@@ -25,9 +19,12 @@ double haversineDistance(double lat1, double lon1, double lat2, double lon2) {
   double dLat = toRadians(lat2 - lat1);
   double dLon = toRadians(lon2 - lon1);
 
-  double a = sin(dLat / 2) * sin(dLat / 2) +
-      cos(toRadians(lat1)) * cos(toRadians(lat2)) *
-      sin(dLon / 2) * sin(dLon / 2);
+  double a =
+      sin(dLat / 2) * sin(dLat / 2) +
+      cos(toRadians(lat1)) *
+          cos(toRadians(lat2)) *
+          sin(dLon / 2) *
+          sin(dLon / 2);
 
   double c = 2 * atan2(sqrt(a), sqrt(1 - a));
 
@@ -43,15 +40,19 @@ double calculateBearing(double lat1, double lon1, double lat2, double lon2) {
   double lat2Rad = toRadians(lat2);
 
   double y = sin(dLon) * cos(lat2Rad);
-  double x = cos(lat1Rad) * sin(lat2Rad) -
-      sin(lat1Rad) * cos(lat2Rad) * cos(dLon);
+  double x =
+      cos(lat1Rad) * sin(lat2Rad) - sin(lat1Rad) * cos(lat2Rad) * cos(dLon);
 
   double bearing = toDegrees(atan2(y, x));
 
   return (bearing + 360) % 360; // normalize to 0-360
 }
 
-bool isWithinToleranceCone(double heading, double bearing, {double tolerance = 25}) {
+bool isWithinToleranceCone(
+  double heading,
+  double bearing, {
+  double tolerance = 25,
+}) {
   double diff = bearing - heading;
 
   diff = (diff + 180) % 360 - 180;
@@ -60,15 +61,24 @@ bool isWithinToleranceCone(double heading, double bearing, {double tolerance = 2
   return diff.abs() <= tolerance;
 }
 
-List<POI> findCandidatePOIs(double userLat, double userLon, double userHeading, List<POI> allPOIs) {
-  List<POI> candidates = [];
+List<Poi> findCandidatePOIs(
+  double userLat,
+  double userLon,
+  double userHeading,
+  List<Poi> allPOIs,
+) {
+  List<Poi> candidates = [];
 
-  for (POI poi in allPOIs) {
-    double distance = haversineDistance(userLat, userLon, poi.lat, poi.lon);
-    double bearing = calculateBearing(userLat, userLon, poi.lat, poi.lon);
+  for (Poi poi in allPOIs) {
+    double distance = haversineDistance(userLat, userLon, poi.lat, poi.long);
+    double bearing = calculateBearing(userLat, userLon, poi.lat, poi.long);
 
     bool inRange = distance >= 5 && distance <= 15;
-    bool facingIt = isWithinToleranceCone(userHeading, bearing);
+    bool facingIt = isWithinToleranceCone(
+      userHeading,
+      bearing,
+      tolerance: poi.bearingTolerance,
+    );
 
     if (inRange && facingIt) {
       candidates.add(poi);
@@ -78,25 +88,45 @@ List<POI> findCandidatePOIs(double userLat, double userLon, double userHeading, 
   return candidates;
 }
 
-List<POI> rankCandidates(double userLat, double userLon, double userHeading, List<POI> candidates) {
+List<Poi> rankCandidates(
+  double userLat,
+  double userLon,
+  double userHeading,
+  List<Poi> candidates,
+) {
   candidates.sort((a, b) {
-    double distA = haversineDistance(userLat, userLon, a.lat, a.lon);
-    double distB = haversineDistance(userLat, userLon, b.lat, b.lon);
+    double distA = haversineDistance(userLat, userLon, a.lat, a.long);
+    double distB = haversineDistance(userLat, userLon, b.lat, b.long);
     return distA.compareTo(distB);
   });
 
   return candidates;
 }
 
-MatchResult runMatchingEngine(double userLat, double userLon, double userHeading, List<POI> allPOIs) {
-  List<POI> candidates = findCandidatePOIs(userLat, userLon, userHeading, allPOIs);
+MatchResult runMatchingEngine(
+  double userLat,
+  double userLon,
+  double userHeading,
+  List<Poi> allPOIs,
+) {
+  List<Poi> candidates = findCandidatePOIs(
+    userLat,
+    userLon,
+    userHeading,
+    allPOIs,
+  );
 
   if (candidates.isEmpty) {
     return MatchResult();
   } else if (candidates.length == 1) {
     return MatchResult(singleMatch: candidates[0]);
   } else {
-    List<POI> ranked = rankCandidates(userLat, userLon, userHeading, candidates);
+    List<Poi> ranked = rankCandidates(
+      userLat,
+      userLon,
+      userHeading,
+      candidates,
+    );
     return MatchResult(queue: ranked);
   }
 }
@@ -106,13 +136,45 @@ void main() {
   double userLon = 77.5946;
   double userHeading = 44;
 
-  List<POI> testPOIs = [
-    POI('Old Fort Gate', 12.97165, 77.59468),
-    POI('Ancient Temple', 12.9720, 77.5950),
-    POI('Watch Tower', 12.97162, 77.59465),
+  List<Poi> testPOIs = [
+    const Poi(
+      id: 'old_fort_gate',
+      monumentId: 'test_monument',
+      name: 'Old Fort Gate',
+      lat: 12.97165,
+      long: 77.59468,
+      bearingTolerance: 25,
+      audioUrl: '',
+      scriptText: '',
+    ),
+    const Poi(
+      id: 'ancient_temple',
+      monumentId: 'test_monument',
+      name: 'Ancient Temple',
+      lat: 12.9720,
+      long: 77.5950,
+      bearingTolerance: 25,
+      audioUrl: '',
+      scriptText: '',
+    ),
+    const Poi(
+      id: 'watch_tower',
+      monumentId: 'test_monument',
+      name: 'Watch Tower',
+      lat: 12.97162,
+      long: 77.59465,
+      bearingTolerance: 25,
+      audioUrl: '',
+      scriptText: '',
+    ),
   ];
 
-  MatchResult result = runMatchingEngine(userLat, userLon, userHeading, testPOIs);
+  MatchResult result = runMatchingEngine(
+    userLat,
+    userLon,
+    userHeading,
+    testPOIs,
+  );
 
   if (result.singleMatch != null) {
     print('Playing directly: ${result.singleMatch!.name}');
