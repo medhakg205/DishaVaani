@@ -2,6 +2,7 @@ import 'admin_dashboard.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'firebase_options.dart';
 import 'models/poi.dart';
@@ -10,8 +11,15 @@ import 'services/poi_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Firebase initialization
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // Supabase initialization
+  await Supabase.initialize(
+    url: 'https://gsmzrogltivaufladsah.supabase.co',
+    publishableKey: 'sb_publishable_MmaEvtjzf72ur6vYQN3lPg_DCVYC0BL',
   );
 
   runApp(const DishaVaaniApp());
@@ -125,7 +133,9 @@ class SplashScreen extends StatelessWidget {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const LanguageSelectScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => const LanguageSelectScreen(),
+                      ),
                     );
                   },
                   child: const Text('CHOOSE LANGUAGE'),
@@ -140,6 +150,7 @@ class SplashScreen extends StatelessWidget {
 }
 
 // ---------- Language Selection ----------
+
 class LanguageSelectScreen extends StatefulWidget {
   const LanguageSelectScreen({super.key});
 
@@ -150,7 +161,6 @@ class LanguageSelectScreen extends StatefulWidget {
 class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
   String selectedLanguage = 'English';
 
-  // Bhashini-supported Indian languages (English enabled for now, rest are placeholders)
   final List<Map<String, dynamic>> languages = [
     {'name': 'English', 'native': 'English', 'enabled': true},
     {'name': 'Hindi', 'native': 'हिन्दी', 'enabled': false},
@@ -170,7 +180,10 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
       appBar: AppBar(
         backgroundColor: maroon,
         elevation: 4,
-        title: const Text('Choose Language', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Choose Language',
+          style: TextStyle(color: Colors.white),
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -179,27 +192,41 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
           children: [
             const Text(
               'Select your preferred narration language',
-              style: TextStyle(fontSize: 13, color: Colors.black54),
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.black54,
+              ),
             ),
             const SizedBox(height: 16),
             Expanded(
               child: ListView.separated(
                 itemCount: languages.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (_, __) =>
+                    const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final lang = languages[index];
-                  final bool isEnabled = lang['enabled'] as bool;
-                  final bool isSelected = selectedLanguage == lang['name'];
+                  final bool isEnabled =
+                      lang['enabled'] as bool;
+                  final bool isSelected =
+                      selectedLanguage == lang['name'];
 
                   return Opacity(
                     opacity: isEnabled ? 1.0 : 0.5,
                     child: InkWell(
                       onTap: isEnabled
-                          ? () => setState(() => selectedLanguage = lang['name'])
+                          ? () {
+                              setState(() {
+                                selectedLanguage =
+                                    lang['name'];
+                              });
+                            }
                           : () {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(
                                 SnackBar(
-                                  content: Text('${lang['name']} narration coming soon via Bhashini.'),
+                                  content: Text(
+                                    '${lang['name']} narration coming soon via Bhashini.',
+                                  ),
                                 ),
                               );
                             },
@@ -208,9 +235,12 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius:
+                              BorderRadius.circular(10),
                           border: Border.all(
-                            color: isSelected ? terracotta : Colors.black12,
+                            color: isSelected
+                                ? terracotta
+                                : Colors.black12,
                             width: isSelected ? 2 : 1,
                           ),
                         ),
@@ -218,22 +248,42 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                           children: [
                             Expanded(
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
                                 children: [
-                                  Text(lang['name'],
-                                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                                  Text(lang['native'],
-                                      style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                                  Text(
+                                    lang['name'],
+                                    style: const TextStyle(
+                                      fontWeight:
+                                          FontWeight.w600,
+                                    ),
+                                  ),
+                                  Text(
+                                    lang['native'],
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
                             if (!isEnabled)
-                              const Text('Coming soon',
-                                  style: TextStyle(fontSize: 11, color: Colors.black38)),
+                              const Text(
+                                'Coming soon',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.black38,
+                                ),
+                              ),
                             if (isSelected)
                               const Padding(
-                                padding: EdgeInsets.only(left: 8),
-                                child: Icon(Icons.check_circle, color: terracotta),
+                                padding:
+                                    EdgeInsets.only(left: 8),
+                                child: Icon(
+                                  Icons.check_circle,
+                                  color: terracotta,
+                                ),
                               ),
                           ],
                         ),
@@ -250,8 +300,11 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: maroon,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 onPressed: () => Navigator.pop(context),
                 child: const Text('CONFIRM'),
@@ -342,7 +395,10 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         backgroundColor: maroon,
         elevation: 4,
-        title: const Text('DishaVaani', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'DishaVaani',
+          style: TextStyle(color: Colors.white),
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -420,16 +476,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                   borderRadius: BorderRadius.circular(10),
                   child: Container(
-                    margin: const EdgeInsets.only(bottom: 12),
+                    margin:
+                        const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius:
+                          BorderRadius.circular(10),
                       border: Border.all(
-                        color: selectedMonumentId == entry.key
-                            ? terracotta
-                            : Colors.black12,
-                        width: selectedMonumentId == entry.key ? 2 : 1,
+                        color:
+                            selectedMonumentId == entry.key
+                                ? terracotta
+                                : Colors.black12,
+                        width:
+                            selectedMonumentId == entry.key
+                                ? 2
+                                : 1,
                       ),
                     ),
                     child: Row(
@@ -439,7 +501,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           height: 56,
                           decoration: BoxDecoration(
                             color: sandstone,
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius:
+                                BorderRadius.circular(8),
                           ),
                           child: const Icon(
                             Icons.account_balance,
@@ -464,7 +527,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         if (selectedMonumentId == entry.key)
                           const Padding(
-                            padding: EdgeInsets.only(left: 8),
+                            padding:
+                                EdgeInsets.only(left: 8),
                             child: Icon(
                               Icons.check,
                               color: terracotta,
@@ -482,7 +546,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: maroon,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -493,8 +558,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => PointDetectScreen(
-                              monumentId: selectedMonumentId!,
+                            builder: (_) =>
+                                PointDetectScreen(
+                              monumentId:
+                                  selectedMonumentId!,
                             ),
                           ),
                         );
@@ -510,16 +577,22 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // ---------- SCREEN 3: Point & Detect ----------
+
 class PointDetectScreen extends StatefulWidget {
   final String monumentId;
 
-  const PointDetectScreen({super.key, required this.monumentId});
+  const PointDetectScreen({
+    super.key,
+    required this.monumentId,
+  });
 
   @override
-  State<PointDetectScreen> createState() => _PointDetectScreenState();
+  State<PointDetectScreen> createState() =>
+      _PointDetectScreenState();
 }
 
-class _PointDetectScreenState extends State<PointDetectScreen> {
+class _PointDetectScreenState
+    extends State<PointDetectScreen> {
   double heading = 214;
 
   @override
@@ -529,10 +602,19 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
         backgroundColor: maroon,
         elevation: 4,
         leading: IconButton(
-          icon: const Icon(Icons.home, color: Colors.white),
-          onPressed: () => Navigator.popUntil(context, (r) => r.isFirst),
+          icon: const Icon(
+            Icons.home,
+            color: Colors.white,
+          ),
+          onPressed: () => Navigator.popUntil(
+            context,
+            (r) => r.isFirst,
+          ),
         ),
-        title: const Text('DishaVaani', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'DishaVaani',
+          style: TextStyle(color: Colors.white),
+        ),
       ),
       body: Column(
         children: [
@@ -540,8 +622,13 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             color: Colors.black87,
-            child: Text('HEADING ${heading.toInt()}°',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: Text(
+              'HEADING ${heading.toInt()}°',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
           Expanded(
             child: Container(
@@ -552,17 +639,30 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                   height: 160,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: terracotta, width: 3),
+                    border: Border.all(
+                      color: terracotta,
+                      width: 3,
+                    ),
                   ),
                   child: Center(
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisAlignment:
+                          MainAxisAlignment.center,
                       children: const [
-                        Icon(Icons.explore, color: terracotta, size: 36),
+                        Icon(
+                          Icons.explore,
+                          color: terracotta,
+                          size: 36,
+                        ),
                         SizedBox(height: 6),
-                        Text('HOLD\nSTEADY',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontWeight: FontWeight.bold, color: maroon)),
+                        Text(
+                          'HOLD\nSTEADY',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: maroon,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -578,13 +678,17 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: maroon,
                   side: const BorderSide(color: maroon),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 14),
                 ),
                 onPressed: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => NowPlayingScreen(monumentId: widget.monumentId),
+                      builder: (_) =>
+                          NowPlayingScreen(
+                        monumentId: widget.monumentId,
+                      ),
                     ),
                   );
                 },
@@ -609,10 +713,12 @@ class NowPlayingScreen extends StatefulWidget {
   });
 
   @override
-  State<NowPlayingScreen> createState() => _NowPlayingScreenState();
+  State<NowPlayingScreen> createState() =>
+      _NowPlayingScreenState();
 }
 
-class _NowPlayingScreenState extends State<NowPlayingScreen> {
+class _NowPlayingScreenState
+    extends State<NowPlayingScreen> {
   final PoiService _poiService = PoiService();
   final AudioPlayer _audioPlayer = AudioPlayer();
 
@@ -631,7 +737,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       if (!mounted) return;
 
       setState(() {
-        isPlaying = state == PlayerState.playing;
+        isPlaying =
+            state == PlayerState.playing;
       });
     });
 
@@ -659,15 +766,18 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     });
 
     try {
-      final pois = await _poiService.fetchPoisByMonument(
+      final pois =
+          await _poiService.fetchPoisByMonument(
         widget.monumentId,
       );
 
       if (!mounted) return;
 
       setState(() {
-        currentPoi = pois.isNotEmpty ? pois.first : null;
-        queue = pois.length > 1 ? pois.sublist(1) : [];
+        currentPoi =
+            pois.isNotEmpty ? pois.first : null;
+        queue =
+            pois.length > 1 ? pois.sublist(1) : [];
         isLoading = false;
       });
     } catch (error) {
@@ -700,6 +810,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       if (isPlaying) {
         await _audioPlayer.pause();
       } else {
+        // Plays the public Supabase Storage URL.
         await _audioPlayer.play(
           UrlSource(audioUrl),
         );
@@ -713,7 +824,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Could not play audio: $error'),
+          content: Text(
+            'Could not play audio: $error',
+          ),
         ),
       );
     }
@@ -730,7 +843,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         ...queue,
       ]
           .whereType<Poi>()
-          .where((item) => item.id != poi.id)
+          .where(
+            (item) => item.id != poi.id,
+          )
           .toList();
 
       currentPoi = poi;
@@ -824,7 +939,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => ManualPoiListScreen(
+              builder: (_) =>
+                  ManualPoiListScreen(
                 pois: [poi, ...queue],
                 onPoiSelected: _selectPoi,
               ),
@@ -835,7 +951,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
           children: [
             _nowPlayingCard(poi),
             const SizedBox(height: 24),
@@ -862,17 +979,28 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       itemCount: queue.length,
                       separatorBuilder: (_, __) =>
                           const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        final queuedPoi = queue[index];
+                      itemBuilder:
+                          (context, index) {
+                        final queuedPoi =
+                            queue[index];
 
                         return InkWell(
-                          onTap: () => _selectPoi(queuedPoi),
-                          borderRadius: BorderRadius.circular(10),
+                          onTap: () =>
+                              _selectPoi(
+                            queuedPoi,
+                          ),
+                          borderRadius:
+                              BorderRadius.circular(10),
                           child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
+                            padding:
+                                const EdgeInsets.all(12),
+                            decoration:
+                                BoxDecoration(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius:
+                                  BorderRadius.circular(
+                                10,
+                              ),
                               border: Border.all(
                                 color: Colors.black12,
                               ),
@@ -880,37 +1008,49 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             child: Row(
                               children: [
                                 CircleAvatar(
-                                  backgroundColor: sandstone,
+                                  backgroundColor:
+                                      sandstone,
                                   child: Text(
                                     '${index + 2}',
-                                    style: const TextStyle(
+                                    style:
+                                        const TextStyle(
                                       color: maroon,
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(
+                                  width: 12,
+                                ),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                        CrossAxisAlignment
+                                            .start,
                                     children: [
                                       Text(
                                         queuedPoi.name,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
+                                        style:
+                                            const TextStyle(
+                                          fontWeight:
+                                              FontWeight
+                                                  .w600,
                                         ),
                                       ),
                                       if (queuedPoi
                                           .scriptText
                                           .isNotEmpty)
                                         Text(
-                                          queuedPoi.scriptText,
+                                          queuedPoi
+                                              .scriptText,
                                           maxLines: 1,
                                           overflow:
-                                              TextOverflow.ellipsis,
-                                          style: const TextStyle(
+                                              TextOverflow
+                                                  .ellipsis,
+                                          style:
+                                              const TextStyle(
                                             fontSize: 12,
-                                            color: Colors.black54,
+                                            color: Colors
+                                                .black54,
                                           ),
                                         ),
                                     ],
@@ -933,7 +1073,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
-  AppBar _appBar({VoidCallback? onListPressed}) {
+  AppBar _appBar({
+    VoidCallback? onListPressed,
+  }) {
     return AppBar(
       backgroundColor: maroon,
       title: const Text(
@@ -978,7 +1120,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             height: 64,
             decoration: BoxDecoration(
               color: gold.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius:
+                  BorderRadius.circular(8),
             ),
             child: const Icon(
               Icons.temple_hindu,
@@ -989,7 +1132,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           const SizedBox(width: 14),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 const Text(
                   'Now approaching',
@@ -1011,7 +1155,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   Text(
                     poi.scriptText,
                     maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                    overflow:
+                        TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 12,
                       color: Colors.black54,
@@ -1035,7 +1180,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   : Icons.play_circle_filled,
               color: terracotta,
             ),
-            onPressed: () => _togglePlayback(poi),
+            onPressed: () =>
+                _togglePlayback(poi),
           ),
         ],
       ),
@@ -1061,18 +1207,27 @@ class ManualPoiListScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: maroon,
         elevation: 4,
-        title: const Text('All POIs', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'All POIs',
+          style: TextStyle(color: Colors.white),
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding:
+                  const EdgeInsets.symmetric(
+                horizontal: 12,
+              ),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.black12),
+                borderRadius:
+                    BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.black12,
+                ),
               ),
               child: const Row(
                 children: [
@@ -1096,13 +1251,18 @@ class ManualPoiListScreen extends StatelessWidget {
             Expanded(
               child: pois.isEmpty
                   ? const Center(
-                      child: Text('No POIs available.'),
+                      child:
+                          Text('No POIs available.'),
                     )
                   : ListView.separated(
                       itemCount: pois.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
+                      separatorBuilder:
+                          (_, __) =>
+                              const SizedBox(
+                        height: 10,
+                      ),
+                      itemBuilder:
+                          (context, index) {
                         final poi = pois[index];
 
                         return InkWell(
@@ -1110,12 +1270,22 @@ class ManualPoiListScreen extends StatelessWidget {
                             onPoiSelected(poi);
                             Navigator.pop(context);
                           },
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius:
+                              BorderRadius.circular(
+                            10,
+                          ),
                           child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
+                            padding:
+                                const EdgeInsets.all(
+                              12,
+                            ),
+                            decoration:
+                                BoxDecoration(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius:
+                                  BorderRadius.circular(
+                                10,
+                              ),
                               border: Border.all(
                                 color: Colors.black12,
                               ),
@@ -1125,37 +1295,53 @@ class ManualPoiListScreen extends StatelessWidget {
                                 Container(
                                   width: 48,
                                   height: 48,
-                                  decoration: BoxDecoration(
+                                  decoration:
+                                      BoxDecoration(
                                     color: sandstone,
                                     borderRadius:
-                                        BorderRadius.circular(6),
+                                        BorderRadius
+                                            .circular(
+                                      6,
+                                    ),
                                   ),
                                   child: const Icon(
                                     Icons.temple_hindu,
-                                    color: terracotta,
+                                    color:
+                                        terracotta,
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(
+                                  width: 12,
+                                ),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                        CrossAxisAlignment
+                                            .start,
                                     children: [
                                       Text(
                                         poi.name,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
+                                        style:
+                                            const TextStyle(
+                                          fontWeight:
+                                              FontWeight
+                                                  .w600,
                                         ),
                                       ),
-                                      if (poi.scriptText.isNotEmpty)
+                                      if (poi
+                                          .scriptText
+                                          .isNotEmpty)
                                         Text(
                                           poi.scriptText,
                                           maxLines: 2,
                                           overflow:
-                                              TextOverflow.ellipsis,
-                                          style: const TextStyle(
+                                              TextOverflow
+                                                  .ellipsis,
+                                          style:
+                                              const TextStyle(
                                             fontSize: 12,
-                                            color: Colors.black54,
+                                            color: Colors
+                                                .black54,
                                           ),
                                         ),
                                     ],

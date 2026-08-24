@@ -39,6 +39,7 @@ dependencies:
   firebase_storage: ^13.4.6
   file_picker: ^10.3.8
   audioplayers: ^6.5.1
+  supabase_flutter: ^2.17.2
 
 dev_dependencies:
   flutter_test:
