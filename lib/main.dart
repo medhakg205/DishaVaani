@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 import 'firebase_options.dart';
 import 'models/poi.dart';
 import 'services/poi_service.dart';
+import 'package:geolocator/geolocator.dart';
+import 'sensor_service.dart';
+import 'dart:async';
+import 'matching_engine.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,8 +46,43 @@ class DishaVaaniApp extends StatelessWidget {
 
 // ---------- SCREEN 1: Splash ----------
 
-class SplashScreen extends StatelessWidget {
+class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  bool _isRequestingPermission = false;
+
+  Future<void> _requestPermissionsAndContinue(BuildContext context) async {
+    setState(() => _isRequestingPermission = true);
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    if (!mounted) return;
+    setState(() => _isRequestingPermission = false);
+
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Location permission is required to use DishaVaani.'),
+        ),
+      );
+      return;
+    }
+
+    if (!context.mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -98,17 +137,22 @@ class SplashScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const HomeScreen(),
-                      ),
-                    );
-                  },
-                  child: const Text('ALLOW LOCATION + COMPASS'),
+                  onPressed: _isRequestingPermission
+                      ? null
+                      : () => _requestPermissionsAndContinue(context),
+                  child: _isRequestingPermission
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('ALLOW LOCATION + COMPASS'),
                 ),
               ),
+
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -519,7 +563,54 @@ class PointDetectScreen extends StatefulWidget {
 }
 
 class _PointDetectScreenState extends State<PointDetectScreen> {
-  double heading = 214;
+  double heading = 0;
+  double? lat;
+  double? long;
+
+  final SensorService _sensorService = SensorService();
+  StreamSubscription<SensorReading>? _sensorSub;
+  final PoiService _poiService = PoiService();
+  List<Poi> _monumentPois = [];
+
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPois();
+    _startSensors();
+  
+  }
+  Future<void> _loadPois() async {
+    try {
+      final pois = await _poiService.fetchPoisByMonument(widget.monumentId);
+      if (!mounted) return;
+      setState(() {
+        _monumentPois = pois;
+      });
+    } catch (error) {
+      // We'll handle error display later — for now just keep the list empty.
+    }
+  }
+
+  Future<void> _startSensors() async {
+    await _sensorService.start();
+
+    _sensorSub = _sensorService.readings.listen((reading) {
+      if (!mounted) return;
+      setState(() {
+        heading = reading.heading;
+        lat = reading.lat;
+        long = reading.long;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _sensorSub?.cancel();
+    _sensorService.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
