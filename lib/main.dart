@@ -771,7 +771,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   Future<void> _togglePlayback(Poi poi) async {
-    final audioUrl = poi.audioUrl.trim();
+    final audioUrl = poi.getAudioUrl('en').trim();
 
     if (audioUrl.isEmpty) {
       if (!mounted) return;
@@ -990,11 +990,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
-                                      if (queuedPoi
-                                          .scriptText
-                                          .isNotEmpty)
+                                      if (queuedPoi.getScript('en').isNotEmpty)
                                         Text(
-                                          queuedPoi.scriptText,
+                                          queuedPoi.getScript('en'),
                                           maxLines: 1,
                                           overflow:
                                               TextOverflow.ellipsis,
@@ -1097,14 +1095,23 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                if (poi.scriptText.isNotEmpty)
+                if (poi.getScript('en').isNotEmpty)
                   Text(
-                    poi.scriptText,
+                    poi.getScript('en'),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 12,
                       color: Colors.black54,
+                    ),
+                  )
+                else
+                  const Text(
+                    'Description not available yet.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                      color: Colors.black45,
                     ),
                   ),
                 const SizedBox(height: 8),
@@ -1237,9 +1244,9 @@ class ManualPoiListScreen extends StatelessWidget {
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
-                                      if (poi.scriptText.isNotEmpty)
+                                      if (poi.getScript('en').isNotEmpty)
                                         Text(
-                                          poi.scriptText,
+                                          poi.getScript('en'),
                                           maxLines: 2,
                                           overflow:
                                               TextOverflow.ellipsis,
