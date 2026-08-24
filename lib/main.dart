@@ -109,10 +109,9 @@ class SplashScreen extends StatelessWidget {
                     ),
                   ),
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Language selection will be added next.'),
-                      ),
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LanguageSelectScreen()),
                     );
                   },
                   child: const Text('CHOOSE LANGUAGE'),
@@ -120,6 +119,131 @@ class SplashScreen extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------- Language Selection ----------
+class LanguageSelectScreen extends StatefulWidget {
+  const LanguageSelectScreen({super.key});
+
+  @override
+  State<LanguageSelectScreen> createState() => _LanguageSelectScreenState();
+}
+
+class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
+  String selectedLanguage = 'English';
+
+  // Bhashini-supported Indian languages (English enabled for now, rest are placeholders)
+  final List<Map<String, dynamic>> languages = [
+    {'name': 'English', 'native': 'English', 'enabled': true},
+    {'name': 'Hindi', 'native': 'हिन्दी', 'enabled': false},
+    {'name': 'Tamil', 'native': 'தமிழ்', 'enabled': false},
+    {'name': 'Telugu', 'native': 'తెలుగు', 'enabled': false},
+    {'name': 'Kannada', 'native': 'ಕನ್ನಡ', 'enabled': false},
+    {'name': 'Malayalam', 'native': 'മലയാളം', 'enabled': false},
+    {'name': 'Marathi', 'native': 'मराठी', 'enabled': false},
+    {'name': 'Bengali', 'native': 'বাংলা', 'enabled': false},
+    {'name': 'Gujarati', 'native': 'ગુજરાતી', 'enabled': false},
+    {'name': 'Punjabi', 'native': 'ਪੰਜਾਬੀ', 'enabled': false},
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: maroon,
+        elevation: 4,
+        title: const Text('Choose Language', style: TextStyle(color: Colors.white)),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Select your preferred narration language',
+              style: TextStyle(fontSize: 13, color: Colors.black54),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView.separated(
+                itemCount: languages.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final lang = languages[index];
+                  final bool isEnabled = lang['enabled'] as bool;
+                  final bool isSelected = selectedLanguage == lang['name'];
+
+                  return Opacity(
+                    opacity: isEnabled ? 1.0 : 0.5,
+                    child: InkWell(
+                      onTap: isEnabled
+                          ? () => setState(() => selectedLanguage = lang['name'])
+                          : () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('${lang['name']} narration coming soon via Bhashini.'),
+                                ),
+                              );
+                            },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isSelected ? terracotta : Colors.black12,
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(lang['name'],
+                                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                                  Text(lang['native'],
+                                      style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                                ],
+                              ),
+                            ),
+                            if (!isEnabled)
+                              const Text('Coming soon',
+                                  style: TextStyle(fontSize: 11, color: Colors.black38)),
+                            if (isSelected)
+                              const Padding(
+                                padding: EdgeInsets.only(left: 8),
+                                child: Icon(Icons.check_circle, color: terracotta),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: maroon,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () => Navigator.pop(context),
+                child: const Text('CONFIRM'),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -196,6 +320,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: maroon,
+        elevation: 4,
         title: const Text('DishaVaani', style: TextStyle(color: Colors.white)),
       ),
       body: Padding(
@@ -331,7 +456,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => NowPlayingScreen(
+                            builder: (_) => PointDetectScreen(
                               monumentId: selectedMonumentId!,
                             ),
                           ),
@@ -342,6 +467,95 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ---------- SCREEN 3: Point & Detect ----------
+class PointDetectScreen extends StatefulWidget {
+  final String monumentId;
+
+  const PointDetectScreen({super.key, required this.monumentId});
+
+  @override
+  State<PointDetectScreen> createState() => _PointDetectScreenState();
+}
+
+class _PointDetectScreenState extends State<PointDetectScreen> {
+  double heading = 214;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: maroon,
+        elevation: 4,
+        leading: IconButton(
+          icon: const Icon(Icons.home, color: Colors.white),
+          onPressed: () => Navigator.popUntil(context, (r) => r.isFirst),
+        ),
+        title: const Text('DishaVaani', style: TextStyle(color: Colors.white)),
+      ),
+      body: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            color: Colors.black87,
+            child: Text('HEADING ${heading.toInt()}°',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+          Expanded(
+            child: Container(
+              color: sandstone,
+              child: Center(
+                child: Container(
+                  width: 160,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: terracotta, width: 3),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.explore, color: terracotta, size: 36),
+                        SizedBox(height: 6),
+                        Text('HOLD\nSTEADY',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontWeight: FontWeight.bold, color: maroon)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: maroon,
+                  side: const BorderSide(color: maroon),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => NowPlayingScreen(monumentId: widget.monumentId),
+                    ),
+                  );
+                },
+                child: const Text('MANUAL LIST'),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -698,6 +912,7 @@ class ManualPoiListScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: maroon,
+        elevation: 4,
         title: const Text('All POIs', style: TextStyle(color: Colors.white)),
       ),
       body: Padding(
