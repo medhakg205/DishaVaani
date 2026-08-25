@@ -38,7 +38,7 @@ class SensorService {
     _positionSub = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 1,
+        distanceFilter: 0,
       ),
     ).listen((position) {
       _lastPosition = position;
