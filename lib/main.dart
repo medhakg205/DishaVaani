@@ -1,3 +1,5 @@
+import 'demo/demo_controller.dart';
+import 'demo/demo_panel.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -519,7 +521,13 @@ class PointDetectScreen extends StatefulWidget {
 }
 
 class _PointDetectScreenState extends State<PointDetectScreen> {
-  double heading = 214;
+  final DemoController demoController = DemoController();
+
+  @override
+  void dispose() {
+    demoController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -533,65 +541,81 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
         ),
         title: const Text('DishaVaani', style: TextStyle(color: Colors.white)),
       ),
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            color: Colors.black87,
-            child: Text('HEADING ${heading.toInt()}°',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-          Expanded(
-            child: Container(
-              color: sandstone,
-              child: Center(
-                child: Container(
-                  width: 160,
-                  height: 160,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: terracotta, width: 3),
-                  ),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(Icons.explore, color: terracotta, size: 36),
-                        SizedBox(height: 6),
-                        Text('HOLD\nSTEADY',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontWeight: FontWeight.bold, color: maroon)),
-                      ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            DemoPanel(controller: demoController),
+
+            AnimatedBuilder(
+              animation: demoController,
+              builder: (context, _) {
+                final radians = demoController.heading * 3.141592653589793 / 180;
+                return Expanded(
+                  child: Container(
+                    width: double.infinity,
+                    color: sandstone,
+                    child: Center(
+                      child: Transform.rotate(
+                        angle: radians,
+                        child: Container(
+                          width: 160,
+                          height: 160,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: terracotta, width: 3),
+                          ),
+                          child: const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.explore, color: terracotta, size: 36),
+                                SizedBox(height: 6),
+                                Text(
+                                  'DEMO\nHEADING',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: maroon,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
+                );
+              },
+            ),
+
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: maroon,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => NowPlayingScreen(
+                          monumentId: widget.monumentId,
+                          demoController: demoController,
+                        ),
+                      ),
+                    );
+                  },
+                  child: const Text('OPEN LIVE QUEUE'),
                 ),
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: maroon,
-                  side: const BorderSide(color: maroon),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => NowPlayingScreen(monumentId: widget.monumentId),
-                    ),
-                  );
-                },
-                child: const Text('MANUAL LIST'),
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -601,10 +625,12 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
 
 class NowPlayingScreen extends StatefulWidget {
   final String monumentId;
+  final DemoController? demoController;
 
   const NowPlayingScreen({
     super.key,
     this.monumentId = 'qutub_minar',
+    this.demoController,
   });
 
   @override
@@ -621,6 +647,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Poi? currentPoi;
   List<Poi> queue = [];
+  List<Poi> _allPois = [];
+
+  double get heading => widget.demoController?.heading ?? 214.0;
 
   @override
   void initState() {
@@ -628,7 +657,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
     _audioPlayer.onPlayerStateChanged.listen((state) {
       if (!mounted) return;
-
       setState(() {
         isPlaying = state == PlayerState.playing;
       });
@@ -636,17 +664,23 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
     _audioPlayer.onPlayerComplete.listen((_) {
       if (!mounted) return;
-
       setState(() {
         isPlaying = false;
       });
     });
 
+    widget.demoController?.addListener(_onDemoChanged);
     _loadPois();
+  }
+
+  void _onDemoChanged() {
+    if (!mounted || _allPois.isEmpty) return;
+    _rerankQueue(autoPlayChangedItem: true);
   }
 
   @override
   void dispose() {
+    widget.demoController?.removeListener(_onDemoChanged);
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -658,24 +692,105 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     });
 
     try {
-      final pois = await _poiService.fetchPoisByMonument(
-        widget.monumentId,
-      );
+      final pois = await _poiService.fetchPoisByMonument(widget.monumentId);
 
       if (!mounted) return;
 
+      _allPois = List<Poi>.from(pois);
+
+      if (_allPois.isEmpty) {
+        setState(() {
+          currentPoi = null;
+          queue = [];
+          isLoading = false;
+        });
+        return;
+      }
+
+      currentPoi = _allPois.first;
+      _rerankQueue();
+
       setState(() {
-        currentPoi = pois.isNotEmpty ? pois.first : null;
-        queue = pois.length > 1 ? pois.sublist(1) : [];
         isLoading = false;
       });
     } catch (error) {
       if (!mounted) return;
-
       setState(() {
         errorMessage = error.toString();
         isLoading = false;
       });
+    }
+  }
+
+  // Demo ranking:
+  // Every POI gets a stable virtual bearing. As the heading slider moves,
+  // the angular distance changes, so the queue visibly re-orders live.
+  double _virtualBearing(Poi poi, int index) {
+    var hash = 0;
+    for (final codeUnit in poi.id.codeUnits) {
+      hash = (hash * 31 + codeUnit) & 0x7fffffff;
+    }
+    return ((hash + index * 47) % 360).toDouble();
+  }
+
+  double _angleDifference(double a, double b) {
+    var diff = (a - b).abs() % 360;
+    if (diff > 180) diff = 360 - diff;
+    return diff;
+  }
+
+  void _rerankQueue({bool autoPlayChangedItem = false}) {
+    if (_allPois.isEmpty) return;
+
+    final selectedId = currentPoi?.id;
+
+    final candidates = _allPois
+        .where((poi) => poi.id != selectedId)
+        .toList();
+
+    candidates.sort((a, b) {
+      final ia = _allPois.indexOf(a);
+      final ib = _allPois.indexOf(b);
+
+      final scoreA = _angleDifference(
+        heading,
+        _virtualBearing(a, ia),
+      );
+      final scoreB = _angleDifference(
+        heading,
+        _virtualBearing(b, ib),
+      );
+
+      return scoreA.compareTo(scoreB);
+    });
+
+    final oldFirst = queue.isNotEmpty ? queue.first.id : null;
+
+    if (!mounted) return;
+
+    setState(() {
+      queue = candidates;
+    });
+
+    // During Auto Play, automatically play the new best POI whenever
+    // the slider rotation causes the first queue item to change.
+    if (autoPlayChangedItem &&
+        widget.demoController?.autoPlay == true &&
+        queue.isNotEmpty &&
+        queue.first.id != oldFirst) {
+      _playPoi(queue.first);
+    }
+  }
+
+  Future<void> _playPoi(Poi poi) async {
+    final audioUrl = poi.audioUrl.trim();
+    if (audioUrl.isEmpty) return;
+
+    try {
+      await _audioPlayer.stop();
+      await _audioPlayer.play(UrlSource(audioUrl));
+    } catch (_) {
+      // Demo autoplay should not crash the UI if a POI has a bad URL.
     }
   }
 
@@ -684,13 +799,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
     if (audioUrl.isEmpty) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'No audio URL is available for this POI.',
-          ),
-        ),
+        const SnackBar(content: Text('No audio URL is available for this POI.')),
       );
       return;
     }
@@ -699,43 +809,29 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       if (isPlaying) {
         await _audioPlayer.pause();
       } else {
-        await _audioPlayer.play(
-          UrlSource(audioUrl),
-        );
+        await _audioPlayer.play(UrlSource(audioUrl));
       }
     } catch (error) {
       if (!mounted) return;
-
       setState(() {
         isPlaying = false;
       });
-
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not play audio: $error'),
-        ),
+        SnackBar(content: Text('Could not play audio: $error')),
       );
     }
   }
 
   Future<void> _selectPoi(Poi poi) async {
     await _audioPlayer.stop();
-
     if (!mounted) return;
 
     setState(() {
-      final updatedPois = [
-        currentPoi,
-        ...queue,
-      ]
-          .whereType<Poi>()
-          .where((item) => item.id != poi.id)
-          .toList();
-
       currentPoi = poi;
-      queue = updatedPois;
       isPlaying = false;
     });
+
+    _rerankQueue();
   }
 
   @override
@@ -744,9 +840,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       return Scaffold(
         appBar: _appBar(),
         body: const Center(
-          child: CircularProgressIndicator(
-            color: terracotta,
-          ),
+          child: CircularProgressIndicator(color: terracotta),
         ),
       );
     }
@@ -760,11 +854,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.cloud_off,
-                  color: terracotta,
-                  size: 54,
-                ),
+                const Icon(Icons.cloud_off, color: terracotta, size: 54),
                 const SizedBox(height: 16),
                 const Text(
                   'Could not load POIs from Firebase.',
@@ -776,22 +866,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                Text(
-                  errorMessage!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.black54,
-                  ),
-                ),
+                Text(errorMessage!, textAlign: TextAlign.center),
                 const SizedBox(height: 20),
                 ElevatedButton.icon(
                   onPressed: _loadPois,
                   icon: const Icon(Icons.refresh),
                   label: const Text('Retry'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: maroon,
-                    foregroundColor: Colors.white,
-                  ),
                 ),
               ],
             ),
@@ -804,13 +884,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       return Scaffold(
         appBar: _appBar(),
         body: const Center(
-          child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Text(
-              'No POIs were found in the Firestore collection "pois".',
-              textAlign: TextAlign.center,
-            ),
-          ),
+          child: Text('No POIs were found in the Firestore collection "pois".'),
         ),
       );
     }
@@ -836,10 +910,38 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (widget.demoController != null)
+              DemoPanel(controller: widget.demoController!),
+
+            if (widget.demoController != null)
+              AnimatedBuilder(
+                animation: widget.demoController!,
+                builder: (context, _) {
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: maroon,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      'DEMO LIVE  •  HEADING ${heading.toInt()}°  •  '
+                      '${queue.length} POIs queued',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  );
+                },
+              ),
+
             _nowPlayingCard(poi),
-            const SizedBox(height: 24),
+            const SizedBox(height: 18),
+
             const Text(
-              'UP NEXT (ranked by distance × angle)',
+              'UP NEXT (live ranked by heading)',
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.black54,
@@ -847,22 +949,20 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               ),
             ),
             const SizedBox(height: 8),
+
             Expanded(
               child: queue.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No other POIs are currently in the queue.',
-                        style: TextStyle(
-                          color: Colors.black54,
-                        ),
-                      ),
-                    )
+                  ? const Center(child: Text('No other POIs are currently in the queue.'))
                   : ListView.separated(
                       itemCount: queue.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: 10),
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final queuedPoi = queue[index];
+                        final bearing = _virtualBearing(
+                          queuedPoi,
+                          _allPois.indexOf(queuedPoi),
+                        );
+                        final angle = _angleDifference(heading, bearing);
 
                         return InkWell(
                           onTap: () => _selectPoi(queuedPoi),
@@ -870,10 +970,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           child: Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: index == 0 ? gold.withOpacity(0.18) : Colors.white,
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
-                                color: Colors.black12,
+                                color: index == 0 ? terracotta : Colors.black12,
+                                width: index == 0 ? 2 : 1,
                               ),
                             ),
                             child: Row(
@@ -881,32 +982,32 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                 CircleAvatar(
                                   backgroundColor: sandstone,
                                   child: Text(
-                                    '${index + 2}',
-                                    style: const TextStyle(
-                                      color: maroon,
-                                    ),
+                                    '${index + 1}',
+                                    style: const TextStyle(color: maroon),
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         queuedPoi.name,
+                                        style: const TextStyle(fontWeight: FontWeight.w600),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        'Bearing ${bearing.toInt()}°  •  ${angle.toInt()}° away',
                                         style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
+                                          fontSize: 11,
+                                          color: Colors.black54,
                                         ),
                                       ),
-                                      if (queuedPoi
-                                          .scriptText
-                                          .isNotEmpty)
+                                      if (queuedPoi.scriptText.isNotEmpty)
                                         Text(
                                           queuedPoi.scriptText,
                                           maxLines: 1,
-                                          overflow:
-                                              TextOverflow.ellipsis,
+                                          overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
                                             fontSize: 12,
                                             color: Colors.black54,
@@ -915,8 +1016,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                     ],
                                   ),
                                 ),
-                                const Icon(
-                                  Icons.play_arrow,
+                                Icon(
+                                  index == 0 ? Icons.volume_up : Icons.play_arrow,
                                   color: terracotta,
                                 ),
                               ],
@@ -935,17 +1036,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   AppBar _appBar({VoidCallback? onListPressed}) {
     return AppBar(
       backgroundColor: maroon,
-      title: const Text(
-        'DishaVaani',
-        style: TextStyle(color: Colors.white),
-      ),
+      title: const Text('DishaVaani', style: TextStyle(color: Colors.white)),
       actions: [
         if (onListPressed != null)
           IconButton(
-            icon: const Icon(
-              Icons.list,
-              color: Colors.white,
-            ),
+            icon: const Icon(Icons.list, color: Colors.white),
             onPressed: onListPressed,
           ),
       ],
@@ -958,10 +1053,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: terracotta,
-          width: 2,
-        ),
+        border: Border.all(color: terracotta, width: 2),
         boxShadow: const [
           BoxShadow(
             color: Colors.black12,
@@ -979,11 +1071,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               color: gold.withOpacity(0.3),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(
-              Icons.temple_hindu,
-              color: maroon,
-              size: 32,
-            ),
+            child: const Icon(Icons.temple_hindu, color: maroon, size: 32),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -992,10 +1080,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               children: [
                 const Text(
                   'Now approaching',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.black54,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.black54),
                 ),
                 Text(
                   poi.name,
@@ -1011,10 +1096,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     poi.scriptText,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.black54,
-                    ),
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
                   ),
                 const SizedBox(height: 8),
                 LinearProgressIndicator(
@@ -1029,9 +1111,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           IconButton(
             iconSize: 40,
             icon: Icon(
-              isPlaying
-                  ? Icons.pause_circle_filled
-                  : Icons.play_circle_filled,
+              isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
               color: terracotta,
             ),
             onPressed: () => _togglePlayback(poi),
