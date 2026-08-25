@@ -555,6 +555,12 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   final PoiService _poiService = PoiService();
   List<Poi> _monumentPois = [];
 
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool isPlaying = false;
+  String? _playingPoiId;
+
+  // Placeholder wiring point: once the matching engine is connected,
+  // this becomes the real top-ranked / in-range POI list.
   List<Poi> get _inRangePois => _monumentPois;
   Poi? get _topPoi => _inRangePois.isNotEmpty ? _inRangePois.first : null;
 
@@ -563,6 +569,16 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
     super.initState();
     _loadPois();
     _startSensors();
+
+    _audioPlayer.onPlayerStateChanged.listen((state) {
+      if (!mounted) return;
+      setState(() => isPlaying = state == PlayerState.playing);
+    });
+
+    _audioPlayer.onPlayerComplete.listen((_) {
+      if (!mounted) return;
+      setState(() => isPlaying = false);
+    });
   }
 
   Future<void> _loadPois() async {
@@ -589,10 +605,38 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
     });
   }
 
+  Future<void> _togglePlayback(Poi poi) async {
+    final audioUrl = poi.getAudioUrl('en').trim();
+
+    if (audioUrl.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No audio URL is available for this POI.')),
+      );
+      return;
+    }
+
+    try {
+      if (isPlaying && _playingPoiId == poi.id) {
+        await _audioPlayer.pause();
+      } else {
+        _playingPoiId = poi.id;
+        await _audioPlayer.play(UrlSource(audioUrl));
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => isPlaying = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not play audio: $error')),
+      );
+    }
+  }
+
   @override
   void dispose() {
     _sensorSub?.cancel();
     _sensorService.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -717,60 +761,71 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
               ),
             ),
 
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: terracotta, width: 2),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 6,
-                    offset: Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: gold.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(8),
+            // ---- Now playing bar ----
+            InkWell(
+              onTap: topPoi == null ? null : () => _togglePlayback(topPoi),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: terracotta, width: 2),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 6,
+                      offset: Offset(0, 3),
                     ),
-                    child: const Icon(Icons.temple_hindu, color: maroon, size: 26),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Now approaching',
-                          style: TextStyle(fontSize: 11, color: Colors.black54),
-                        ),
-                        Text(
-                          topPoi?.name ?? 'Nothing playing yet',
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: maroon,
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: gold.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.temple_hindu, color: maroon, size: 26),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Now approaching',
+                            style: TextStyle(fontSize: 11, color: Colors.black54),
                           ),
-                        ),
-                      ],
+                          Text(
+                            topPoi?.name ?? 'Nothing playing yet',
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: maroon,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: const BoxDecoration(color: maroon, shape: BoxShape.circle),
-                    child: const Icon(Icons.play_arrow, color: Colors.white, size: 18),
-                  ),
-                ],
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: const BoxDecoration(color: maroon, shape: BoxShape.circle),
+                      child: Icon(
+                        isPlaying && _playingPoiId == topPoi?.id
+                            ? Icons.pause
+                            : Icons.play_arrow,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
 
@@ -905,7 +960,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   List<Poi> queue = [];
   List<Poi> _allPois = [];
 
-  double get heading => 214.0;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+
+  double get heading => 214.0; //why is this here? someone please fix this
 
   @override
   void initState() {
@@ -923,6 +981,16 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       setState(() {
         isPlaying = false;
       });
+    });
+
+    _audioPlayer.onPositionChanged.listen((pos) {
+      if (!mounted) return;
+      setState(() => _position = pos);
+    });
+
+    _audioPlayer.onDurationChanged.listen((dur) {
+      if (!mounted) return;
+      setState(() => _duration = dur);
     });
 
     _loadPois();
@@ -1060,6 +1128,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
     try {
       await _audioPlayer.stop();
+      setState(() {
+        _position = Duration.zero;
+        _duration = Duration.zero;
+      });
       await _audioPlayer.play(UrlSource(audioUrl));
     } catch (_) {
       // Demo autoplay should not crash the UI if a POI has a bad URL.
@@ -1104,9 +1176,17 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     setState(() {
       currentPoi = poi;
       isPlaying = false;
+      _position = Duration.zero;
+      _duration = Duration.zero;
     });
 
     _rerankQueue();
+  }
+
+  String _formatDuration(Duration d) {
+    final minutes = d.inMinutes.remainder(60).toString().padLeft(1, '0');
+    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
   }
 
   @override
@@ -1357,11 +1437,39 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     ),
                   ),
                 const SizedBox(height: 8),
-                LinearProgressIndicator(
-                  value: isPlaying ? 0.4 : 0,
-                  backgroundColor: sandstone,
-                  color: terracotta,
-                  minHeight: 4,
+                SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 4,
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                    activeTrackColor: terracotta,
+                    inactiveTrackColor: sandstone,
+                    thumbColor: terracotta,
+                  ),
+                  child: Slider(
+                    min: 0,
+                    max: _duration.inMilliseconds > 0
+                        ? _duration.inMilliseconds.toDouble()
+                        : 1,
+                    value: _position.inMilliseconds
+                        .clamp(0, _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 1)
+                        .toDouble(),
+                    onChanged: (value) {
+                      setState(() => _position = Duration(milliseconds: value.toInt()));
+                    },
+                    onChangeEnd: (value) async {
+                      await _audioPlayer.seek(Duration(milliseconds: value.toInt()));
+                    },
+                  ),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(_formatDuration(_position),
+                        style: const TextStyle(fontSize: 10, color: Colors.black45)),
+                    Text(_formatDuration(_duration),
+                        style: const TextStyle(fontSize: 10, color: Colors.black45)),
+                  ],
                 ),
               ],
             ),
