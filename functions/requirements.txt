@@ -1,0 +1,7 @@
+
+firebase-admin
+gTTS
+deep-translator
+requests
+flask
+gunicorn

@@ -1,0 +1,9 @@
+# Python bytecode
+__pycache__/
+
+# Python virtual environment
+venv/
+*.local
+
+#from firebase
+dishavaani-db373-firebase-adminsdk-fbsvc-5608b29139.json
