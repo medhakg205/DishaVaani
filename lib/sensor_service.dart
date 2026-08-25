@@ -35,14 +35,19 @@ class SensorService {
       throw Exception('Location permission not granted');
     }
 
-    _positionSub = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 0,
+
+      _positionSub = Geolocator.getPositionStream(
+
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.best,
+          distanceFilter: 0,
       ),
-    ).listen((position) {
+      ).listen((position) {
       _lastPosition = position;
+      print('GPS UPDATE: lat=${position.latitude}, long=${position.longitude}');
       _emit();
+    }, onError: (error) {
+      print('GPS STREAM ERROR: $error');
     });
 
     _compassSub = FlutterCompass.events?.listen((event) {
