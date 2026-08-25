@@ -642,13 +642,20 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
         _playingPoiId = poi.id;
         await _audioPlayer.play(UrlSource(audioUrl));
       }
-    } catch (error) {
+        } catch (error) {
       if (!mounted) return;
       setState(() => isPlaying = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not play audio: $error')),
       );
     }
+  }
+  Future<void> _seekBy(Duration delta) async {
+    final maxMs = _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 0;
+    final newMs = (_position.inMilliseconds + delta.inMilliseconds).clamp(0, maxMs);
+    final newPosition = Duration(milliseconds: newMs);
+    setState(() => _position = newPosition);
+    await _audioPlayer.seek(newPosition);
   }
 
   @override
@@ -806,7 +813,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                   ),
                 ],
               ),
-              child: Row(
+                            child: Row(
                 children: [
                   // Monument icon
                   Container(
@@ -825,30 +832,104 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
 
                   const SizedBox(width: 12),
 
-                  // POI name + slider
+                  // POI name + controls + slider
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Now approaching',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.black54,
-                          ),
-                        ),
-
-                        Text(
-                          topPoi?.name ?? 'Nothing playing yet',
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: maroon,
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Now approaching',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  Text(
+                                    topPoi?.name ?? 'Nothing playing yet',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: maroon,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (topPoi != null && isPlaying && _playingPoiId == topPoi.id)
+                              _VolumeButton(audioPlayer: _audioPlayer),
+                          ],
                         ),
 
                         const SizedBox(height: 2),
+
+                        // Play controls: -5s / play-pause / +5s, centered above the slider
+                        if (topPoi != null && isPlaying && _playingPoiId == topPoi.id)
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.replay_5, color: terracotta),
+                                iconSize: 20,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onPressed: () => _seekBy(const Duration(seconds: -5)),
+                              ),
+                              const SizedBox(width: 14),
+                              GestureDetector(
+                                onTap: () => _togglePlayback(topPoi),
+                                child: Container(
+                                  width: 34,
+                                  height: 34,
+                                  decoration: const BoxDecoration(
+                                    color: maroon,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.pause,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              IconButton(
+                                icon: const Icon(Icons.forward_5, color: terracotta),
+                                iconSize: 20,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onPressed: () => _seekBy(const Duration(seconds: 5)),
+                              ),
+                            ],
+                          )
+                        else
+                          Align(
+                            alignment: Alignment.center,
+                            child: GestureDetector(
+                              onTap: topPoi == null ? null : () => _togglePlayback(topPoi),
+                              child: Container(
+                                width: 34,
+                                height: 34,
+                                decoration: const BoxDecoration(
+                                  color: maroon,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.play_arrow,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                        const SizedBox(height: 4),
 
                         SliderTheme(
                           data: SliderTheme.of(context).copyWith(
@@ -893,30 +974,6 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                           ),
                         ),
                       ],
-                    ),
-                  ),
-
-                  const SizedBox(width: 8),
-
-                  // Play / Pause button
-                  GestureDetector(
-                    onTap: topPoi == null
-                        ? null
-                        : () => _togglePlayback(topPoi),
-                    child: Container(
-                      width: 34,
-                      height: 34,
-                      decoration: const BoxDecoration(
-                        color: maroon,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        isPlaying && _playingPoiId == topPoi?.id
-                            ? Icons.pause
-                            : Icons.play_arrow,
-                        color: Colors.white,
-                        size: 18,
-                      ),
                     ),
                   ),
                 ],
@@ -1023,6 +1080,142 @@ class _NeedlePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+// ---------- Reusable volume popup button ----------
+class _VolumeButton extends StatefulWidget {
+  final AudioPlayer audioPlayer;
+  const _VolumeButton({required this.audioPlayer});
+
+  @override
+  State<_VolumeButton> createState() => _VolumeButtonState();
+}
+
+class _VolumeButtonState extends State<_VolumeButton> {
+  final LayerLink _layerLink = LayerLink();
+  OverlayEntry? _overlayEntry;
+  double _volume = 1.0;
+
+  void _toggleSlider() {
+    if (_overlayEntry != null) {
+      _closeSlider();
+    } else {
+      _openSlider();
+    }
+  }
+
+  void _openSlider() {
+    final overlay = Overlay.of(context);
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Stack(
+        children: [
+          // Tap outside to dismiss
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _closeSlider,
+            ),
+          ),
+          CompositedTransformFollower(
+            link: _layerLink,
+            showWhenUnlinked: false,
+            targetAnchor: Alignment.topCenter,
+            followerAnchor: Alignment.bottomCenter,
+            offset: const Offset(-15, -8),
+            child: Material(
+              elevation: 6,
+              borderRadius: BorderRadius.circular(20),
+              color: Colors.transparent,
+              child: Container(
+                width: 44,
+                height: 160,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: terracotta.withOpacity(0.4)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 8,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: StatefulBuilder(
+                  builder: (context, setPopupState) {
+                    return Column(
+                      children: [
+                        const Icon(Icons.volume_up, size: 14, color: terracotta),
+                        Expanded(
+                          child: RotatedBox(
+                            quarterTurns: 3,
+                            child: SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                trackHeight: 3,
+                                thumbShape: const RoundSliderThumbShape(
+                                  enabledThumbRadius: 6,
+                                ),
+                                overlayShape: const RoundSliderOverlayShape(
+                                  overlayRadius: 12,
+                                ),
+                                activeTrackColor: terracotta,
+                                inactiveTrackColor: sandstone,
+                                thumbColor: terracotta,
+                              ),
+                              child: Slider(
+                                min: 0,
+                                max: 1,
+                                value: _volume,
+                                onChanged: (value) {
+                                  setPopupState(() => _volume = value);
+                                  setState(() {});
+                                  widget.audioPlayer.setVolume(value);
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.volume_down, size: 12, color: Colors.black45),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    overlay.insert(_overlayEntry!);
+    setState(() {});
+  }
+
+  void _closeSlider() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _overlayEntry?.remove();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: IconButton(
+        icon: Icon(
+          _volume == 0 ? Icons.volume_off : Icons.volume_up,
+          color: terracotta,
+        ),
+        onPressed: _toggleSlider,
+        splashRadius: 20,
+      ),
+    );
+  }
 }
 
 // ---------- SCREEN 4: Now Playing / Queue ----------
@@ -1262,6 +1455,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
   }
 
+    Future<void> _seekBy(Duration delta) async {
+    final maxMs = _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 0;
+    final newMs = (_position.inMilliseconds + delta.inMilliseconds).clamp(0, maxMs);
+    final newPosition = Duration(milliseconds: newMs);
+    setState(() => _position = newPosition);
+    await _audioPlayer.seek(newPosition);
+  }
+
   Future<void> _selectPoi(Poi poi) async {
     await _audioPlayer.stop();
     if (!mounted) return;
@@ -1435,10 +1636,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                     ],
                                   ),
                                 ),
-                                Icon(
-                                  index == 0 ? Icons.volume_up : Icons.play_arrow,
-                                  color: terracotta,
-                                ),
+                                index == 0
+                                    ? _VolumeButton(audioPlayer: _audioPlayer)
+                                    : const Icon(Icons.play_arrow, color: terracotta),
                               ],
                             ),
                           ),
@@ -1465,8 +1665,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       ],
     );
   }
+    Widget _nowPlayingCard(Poi poi) {
+    final isCurrentPlaying = isPlaying;
 
-  Widget _nowPlayingCard(Poi poi) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1482,6 +1683,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 64,
@@ -1497,17 +1699,29 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Now approaching',
-                  style: TextStyle(fontSize: 12, color: Colors.black54),
-                ),
-                Text(
-                  poi.name,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: maroon,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Now approaching',
+                            style: TextStyle(fontSize: 12, color: Colors.black54),
+                          ),
+                          Text(
+                            poi.name,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: maroon,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (isCurrentPlaying) _VolumeButton(audioPlayer: _audioPlayer),
+                  ],
                 ),
                 const SizedBox(height: 4),
                 if (poi.getScript('en').isNotEmpty)
@@ -1530,6 +1744,59 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     ),
                   ),
                 const SizedBox(height: 8),
+
+                // Play controls: -5s / play-pause / +5s, centered above the slider.
+                // Only shown for this (currently playing) POI.
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (isCurrentPlaying)
+                      IconButton(
+                        icon: const Icon(Icons.replay_5, color: terracotta),
+                        iconSize: 22,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _seekBy(const Duration(seconds: -5)),
+                      ),
+                    if (isCurrentPlaying) const SizedBox(width: 18),
+                    GestureDetector(
+                      onTap: isResolvingAudio ? null : () => _togglePlayback(poi),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: const BoxDecoration(
+                          color: maroon,
+                          shape: BoxShape.circle,
+                        ),
+                        child: isResolvingAudio
+                            ? const Padding(
+                                padding: EdgeInsets.all(10),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Icon(
+                                isCurrentPlaying ? Icons.pause : Icons.play_arrow,
+                                color: Colors.white,
+                                size: 22,
+                              ),
+                      ),
+                    ),
+                    if (isCurrentPlaying) const SizedBox(width: 18),
+                    if (isCurrentPlaying)
+                      IconButton(
+                        icon: const Icon(Icons.forward_5, color: terracotta),
+                        iconSize: 22,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _seekBy(const Duration(seconds: 5)),
+                      ),
+                  ],
+                ),
+
+                const SizedBox(height: 6),
+
                 SliderTheme(
                   data: SliderTheme.of(context).copyWith(
                     trackHeight: 4,
@@ -1567,28 +1834,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               ],
             ),
           ),
-          // Step 7: swap the play/pause icon for a spinner while resolving.
-          IconButton(
-            iconSize: 40,
-            icon: isResolvingAudio
-                ? const SizedBox(
-                    width: 26,
-                    height: 26,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: terracotta,
-                    ),
-                  )
-                : Icon(
-                    isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
-                    color: terracotta,
-                  ),
-            onPressed: isResolvingAudio ? null : () => _togglePlayback(poi),
-          ),
         ],
       ),
     );
-  }
+  }             
 }
 
 // ---------- SCREEN 5: Manual POI List ----------
