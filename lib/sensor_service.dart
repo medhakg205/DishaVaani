@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_compass/flutter_compass.dart';
+import 'dart:io';
 
 class SensorReading {
   final double lat;
@@ -19,11 +20,30 @@ class SensorService {
   Position? _lastPosition;
   StreamSubscription<Position>? _positionSub;
   StreamSubscription<CompassEvent>? _compassSub;
+  Timer? _pollTimer;
 
   final StreamController<SensorReading> _controller =
       StreamController<SensorReading>.broadcast();
 
   Stream<SensorReading> get readings => _controller.stream;
+
+  LocationSettings _getLocationSettings() {
+    if (Platform.isAndroid) {
+      return AndroidSettings(
+        accuracy: LocationAccuracy.best,
+        distanceFilter: 1,
+        intervalDuration: const Duration(milliseconds: 1000),
+      );
+    } else if (Platform.isIOS) {
+      return AppleSettings(
+        accuracy: LocationAccuracy.best,
+        activityType: ActivityType.fitness,
+        distanceFilter: 1,
+        pauseLocationUpdatesAutomatically: false,
+      );
+    }
+    return const LocationSettings(accuracy: LocationAccuracy.best, distanceFilter: 1);
+  }
 
   Future<void> start() async {
     LocationPermission permission = await Geolocator.checkPermission();
@@ -36,13 +56,20 @@ class SensorService {
     }
 
     _positionSub = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 0,
-      ),
+      locationSettings: _getLocationSettings(),
     ).listen((position) {
       _lastPosition = position;
       _emit();
+    });
+
+    _pollTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.best,
+        );
+        _lastPosition = pos;
+        _emit();
+      } catch (_) {}
     });
 
     _compassSub = FlutterCompass.events?.listen((event) {
@@ -62,11 +89,11 @@ class SensorService {
   }
 
   void _emit() {
-    if (_lastPosition != null && _lastHeading != null) {
+    if (_lastPosition != null) {
       _controller.add(SensorReading(
         lat: _lastPosition!.latitude,
         long: _lastPosition!.longitude,
-        heading: _lastHeading!,
+        heading: _lastHeading ?? 0,
       ));
     }
   }
@@ -74,6 +101,7 @@ class SensorService {
   void dispose() {
     _positionSub?.cancel();
     _compassSub?.cancel();
+    _pollTimer?.cancel(); 
     _controller.close();
   }
 }
