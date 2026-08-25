@@ -8,6 +8,7 @@ from deep_translator import GoogleTranslator
 from firebase_admin import credentials, firestore
 from flask import Flask, jsonify, request
 from gtts import gTTS
+from flask_cors import CORS
 
 # --- Firebase setup using an explicit service account (needed since we're
 # running outside Google's infrastructure, on Render) ---
@@ -16,6 +17,7 @@ cred = credentials.Certificate(cred_dict)
 firebase_admin.initialize_app(cred, options={"projectId": "dishavaani-db373"})
 
 app = Flask(__name__)
+CORS(app)
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
