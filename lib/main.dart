@@ -630,8 +630,19 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             color: Colors.black87,
-            child: Text('HEADING ${heading.toInt()}°',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: Column(
+              children: [
+                Text('HEADING ${heading.toInt()}°',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text(
+                  lat != null && long != null
+                      ? 'LAT ${lat!.toStringAsFixed(5)}, LONG ${long!.toStringAsFixed(5)}'
+                      : 'Waiting for GPS...',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ],
+            ),
           ),
           Expanded(
             child: Container(
