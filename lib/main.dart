@@ -193,7 +193,6 @@ class LanguageSelectScreen extends StatefulWidget {
 class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
   String selectedLanguage = 'English';
 
-  // Bhashini-supported Indian languages (English enabled for now, rest are placeholders)
   final List<Map<String, dynamic>> languages = [
     {'name': 'English', 'native': 'English', 'enabled': true},
     {'name': 'Hindi', 'native': 'हिन्दी', 'enabled': false},
@@ -344,8 +343,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final monumentId = poi.monumentId.trim();
 
         if (monumentId.isNotEmpty) {
-          poiCounts[monumentId] =
-              (poiCounts[monumentId] ?? 0) + 1;
+          poiCounts[monumentId] = (poiCounts[monumentId] ?? 0) + 1;
         }
       }
 
@@ -353,8 +351,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         monumentPoiCounts = poiCounts;
-        selectedMonumentId =
-            poiCounts.isNotEmpty ? poiCounts.keys.first : null;
+        selectedMonumentId = poiCounts.isNotEmpty ? poiCounts.keys.first : null;
         isLoading = false;
       });
     } catch (error) {
@@ -372,10 +369,7 @@ class _HomeScreenState extends State<HomeScreen> {
         .replaceAll('_', ' ')
         .split(' ')
         .where((word) => word.isNotEmpty)
-        .map(
-          (word) =>
-              '${word[0].toUpperCase()}${word.substring(1)}',
-        )
+        .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
         .join(' ');
   }
 
@@ -419,9 +413,7 @@ class _HomeScreenState extends State<HomeScreen> {
             if (isLoading)
               const Expanded(
                 child: Center(
-                  child: CircularProgressIndicator(
-                    color: terracotta,
-                  ),
+                  child: CircularProgressIndicator(color: terracotta),
                 ),
               )
             else if (errorMessage != null)
@@ -469,9 +461,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: selectedMonumentId == entry.key
-                            ? terracotta
-                            : Colors.black12,
+                        color: selectedMonumentId == entry.key ? terracotta : Colors.black12,
                         width: selectedMonumentId == entry.key ? 2 : 1,
                       ),
                     ),
@@ -493,25 +483,17 @@ class _HomeScreenState extends State<HomeScreen> {
                         Expanded(
                           child: Text(
                             _monumentName(entry.key),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
                         ),
                         Text(
-                          '${entry.value} POI'
-                          '${entry.value == 1 ? '' : 's'}',
-                          style: const TextStyle(
-                            color: Colors.black45,
-                          ),
+                          '${entry.value} POI${entry.value == 1 ? '' : 's'}',
+                          style: const TextStyle(color: Colors.black45),
                         ),
                         if (selectedMonumentId == entry.key)
                           const Padding(
                             padding: EdgeInsets.only(left: 8),
-                            child: Icon(
-                              Icons.check,
-                              color: terracotta,
-                            ),
+                            child: Icon(Icons.check, color: terracotta),
                           ),
                       ],
                     ),
@@ -526,9 +508,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   backgroundColor: maroon,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: selectedMonumentId == null
                     ? null
@@ -572,14 +552,18 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   final PoiService _poiService = PoiService();
   List<Poi> _monumentPois = [];
 
+  // Placeholder wiring point: once the matching engine is connected,
+  // this becomes the real top-ranked / in-range POI list.
+  List<Poi> get _inRangePois => _monumentPois;
+  Poi? get _topPoi => _inRangePois.isNotEmpty ? _inRangePois.first : null;
 
   @override
   void initState() {
     super.initState();
     _loadPois();
     _startSensors();
-  
   }
+
   Future<void> _loadPois() async {
     try {
       final pois = await _poiService.fetchPoisByMonument(widget.monumentId);
@@ -588,13 +572,12 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
         _monumentPois = pois;
       });
     } catch (error) {
-      // We'll handle error display later — for now just keep the list empty.
+      // handle error display later
     }
   }
 
   Future<void> _startSensors() async {
     await _sensorService.start();
-
     _sensorSub = _sensorService.readings.listen((reading) {
       if (!mounted) return;
       setState(() {
@@ -612,8 +595,20 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
     super.dispose();
   }
 
+  String _monumentName(String monumentId) {
+    return monumentId
+        .replaceAll('_', ' ')
+        .split(' ')
+        .where((word) => word.isNotEmpty)
+        .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
+        .join(' ');
+  }
+
   @override
   Widget build(BuildContext context) {
+    final topPoi = _topPoi;
+    final radians = heading * 3.141592653589793 / 180;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: maroon,
@@ -624,68 +619,268 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
         ),
         title: const Text('DishaVaani', style: TextStyle(color: Colors.white)),
       ),
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            color: Colors.black87,
-            child: Text('HEADING ${heading.toInt()}°',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-          Expanded(
-            child: Container(
-              color: sandstone,
-              child: Center(
-                child: Container(
-                  width: 160,
-                  height: 160,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: terracotta, width: 3),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ---- Monument name + coordinates ----
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+              child: Column(
+                children: [
+                  Text(
+                    _monumentName(widget.monumentId),
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: maroon,
+                    ),
                   ),
-                  child: Center(
+                  const SizedBox(height: 4),
+                  Text(
+                    lat != null && long != null
+                        ? '${lat!.toStringAsFixed(4)}° N, ${long!.toStringAsFixed(4)}° E'
+                        : 'Waiting for GPS...',
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  ),  
+                ],
+              ),
+            ),
+
+            // ---- POI detected status strip ----
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              decoration: BoxDecoration(
+                color: topPoi != null ? terracotta.withOpacity(0.12) : Colors.black.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    topPoi != null ? Icons.radar : Icons.search,
+                    size: 15,
+                    color: topPoi != null ? terracotta : Colors.black45,
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      topPoi != null ? 'POI detected — ${topPoi.name}' : 'Scanning for nearby POIs...',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: topPoi != null ? terracotta : Colors.black45,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ---- Compass ----
+            // ---- Degree readout (above the circle) ----
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                '${heading.toInt()}°',
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: maroon,
+                ),
+              ),
+            ),
+
+            // ---- Compass ----
+            Expanded(
+              child: Center(
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    const Positioned(top: 0, child: _CompassLabel('N')),
+                    const Positioned(bottom: 0, child: _CompassLabel('S')),
+                    const Positioned(left: 0, child: _CompassLabel('W')),
+                    const Positioned(right: 0, child: _CompassLabel('E')),
+                    Container(
+                      width: 160,
+                      height: 160,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: terracotta, width: 3),
+                      ),
+                      child: Center(
+                        child: Transform.rotate(
+                          angle: radians,
+                          child: const _CompassNeedle(size: 90),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // ---- Now playing bar ----
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: terracotta, width: 2),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 6,
+                    offset: Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: gold.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.temple_hindu, color: maroon, size: 26),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(Icons.explore, color: terracotta, size: 36),
-                        SizedBox(height: 6),
-                        Text('HOLD\nSTEADY',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontWeight: FontWeight.bold, color: maroon)),
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Now approaching',
+                          style: TextStyle(fontSize: 11, color: Colors.black54),
+                        ),
+                        Text(
+                          topPoi?.name ?? 'Nothing playing yet',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: maroon,
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                ),
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: const BoxDecoration(color: maroon, shape: BoxShape.circle),
+                    child: const Icon(Icons.play_arrow, color: Colors.white, size: 18),
+                  ),
+                ],
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: maroon,
-                  side: const BorderSide(color: maroon),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => NowPlayingScreen(monumentId: widget.monumentId),
+
+            // ---- Manual list handle ----
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => NowPlayingScreen(
+                      monumentId: widget.monumentId,
                     ),
-                  );
-                },
-                child: const Text('MANUAL LIST'),
+                  ),
+                );
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: const BoxDecoration(
+                  border: Border(top: BorderSide(color: Colors.black12)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _inRangePois.length > 1
+                          ? 'View ${_inRangePois.length} nearby'
+                          : 'View manual list',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.keyboard_arrow_up, size: 16, color: Colors.black54),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
+}
+
+class _CompassLabel extends StatelessWidget {
+  final String label;
+  const _CompassLabel(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(4),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 11, color: Colors.black45, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+class _CompassNeedle extends StatelessWidget {
+  final double size;
+  const _CompassNeedle({this.size = 70});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(painter: _NeedlePainter()),
+    );
+  }
+}
+
+class _NeedlePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final tipLength = size.height / 2;
+    final halfWidth = size.width / 6;
+
+    final northPaint = Paint()..color = maroon;
+    final southPaint = Paint()..color = Colors.black26;
+
+    final northPath = Path()
+      ..moveTo(center.dx, center.dy - tipLength)
+      ..lineTo(center.dx - halfWidth, center.dy)
+      ..lineTo(center.dx + halfWidth, center.dy)
+      ..close();
+
+    final southPath = Path()
+      ..moveTo(center.dx, center.dy + tipLength)
+      ..lineTo(center.dx - halfWidth, center.dy)
+      ..lineTo(center.dx + halfWidth, center.dy)
+      ..close();
+
+    canvas.drawPath(southPath, southPaint);
+    canvas.drawPath(northPath, northPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ---------- SCREEN 4: Now Playing / Queue ----------
@@ -712,6 +907,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Poi? currentPoi;
   List<Poi> queue = [];
+  List<Poi> _allPois = [];
+
+  double get heading => 214.0;
 
   @override
   void initState() {
@@ -719,7 +917,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
     _audioPlayer.onPlayerStateChanged.listen((state) {
       if (!mounted) return;
-
       setState(() {
         isPlaying = state == PlayerState.playing;
       });
@@ -727,7 +924,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
     _audioPlayer.onPlayerComplete.listen((_) {
       if (!mounted) return;
-
       setState(() {
         isPlaying = false;
       });
@@ -749,24 +945,96 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     });
 
     try {
-      final pois = await _poiService.fetchPoisByMonument(
-        widget.monumentId,
-      );
+      final pois = await _poiService.fetchPoisByMonument(widget.monumentId);
 
       if (!mounted) return;
 
+      _allPois = List<Poi>.from(pois);
+
+      if (_allPois.isEmpty) {
+        setState(() {
+          currentPoi = null;
+          queue = [];
+          isLoading = false;
+        });
+        return;
+      }
+
+      currentPoi = _allPois.first;
+      _rerankQueue();
+
       setState(() {
-        currentPoi = pois.isNotEmpty ? pois.first : null;
-        queue = pois.length > 1 ? pois.sublist(1) : [];
         isLoading = false;
       });
     } catch (error) {
       if (!mounted) return;
-
       setState(() {
         errorMessage = error.toString();
         isLoading = false;
       });
+    }
+  }
+
+  // Demo ranking:
+  // Every POI gets a stable virtual bearing. As the heading slider moves,
+  // the angular distance changes, so the queue visibly re-orders live.
+  double _virtualBearing(Poi poi, int index) {
+    var hash = 0;
+    for (final codeUnit in poi.id.codeUnits) {
+      hash = (hash * 31 + codeUnit) & 0x7fffffff;
+    }
+    return ((hash + index * 47) % 360).toDouble();
+  }
+
+  double _angleDifference(double a, double b) {
+    var diff = (a - b).abs() % 360;
+    if (diff > 180) diff = 360 - diff;
+    return diff;
+  }
+
+  void _rerankQueue({bool autoPlayChangedItem = false}) {
+    if (_allPois.isEmpty) return;
+
+    final selectedId = currentPoi?.id;
+
+    final candidates = _allPois.where((poi) => poi.id != selectedId).toList();
+
+    candidates.sort((a, b) {
+      final ia = _allPois.indexOf(a);
+      final ib = _allPois.indexOf(b);
+
+      final scoreA = _angleDifference(heading, _virtualBearing(a, ia));
+      final scoreB = _angleDifference(heading, _virtualBearing(b, ib));
+
+      return scoreA.compareTo(scoreB);
+    });
+
+    final oldFirst = queue.isNotEmpty ? queue.first.id : null;
+
+    if (!mounted) return;
+
+    setState(() {
+      queue = candidates;
+    });
+
+    // During Auto Play, automatically play the new best POI whenever
+    // the slider rotation causes the first queue item to change.
+    if (autoPlayChangedItem &&
+        queue.isNotEmpty &&
+        queue.first.id != oldFirst) {
+      _playPoi(queue.first);
+    }
+  }
+
+  Future<void> _playPoi(Poi poi) async {
+    final audioUrl = poi.getAudioUrl('en').trim();
+    if (audioUrl.isEmpty) return;
+
+    try {
+      await _audioPlayer.stop();
+      await _audioPlayer.play(UrlSource(audioUrl));
+    } catch (_) {
+      // Demo autoplay should not crash the UI if a POI has a bad URL.
     }
   }
 
@@ -775,13 +1043,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
     if (audioUrl.isEmpty) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'No audio URL is available for this POI.',
-          ),
-        ),
+        const SnackBar(content: Text('No audio URL is available for this POI.')),
       );
       return;
     }
@@ -790,43 +1053,29 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       if (isPlaying) {
         await _audioPlayer.pause();
       } else {
-        await _audioPlayer.play(
-          UrlSource(audioUrl),
-        );
+        await _audioPlayer.play(UrlSource(audioUrl));
       }
     } catch (error) {
       if (!mounted) return;
-
       setState(() {
         isPlaying = false;
       });
-
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not play audio: $error'),
-        ),
+        SnackBar(content: Text('Could not play audio: $error')),
       );
     }
   }
 
   Future<void> _selectPoi(Poi poi) async {
     await _audioPlayer.stop();
-
     if (!mounted) return;
 
     setState(() {
-      final updatedPois = [
-        currentPoi,
-        ...queue,
-      ]
-          .whereType<Poi>()
-          .where((item) => item.id != poi.id)
-          .toList();
-
       currentPoi = poi;
-      queue = updatedPois;
       isPlaying = false;
     });
+
+    _rerankQueue();
   }
 
   @override
@@ -835,9 +1084,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       return Scaffold(
         appBar: _appBar(),
         body: const Center(
-          child: CircularProgressIndicator(
-            color: terracotta,
-          ),
+          child: CircularProgressIndicator(color: terracotta),
         ),
       );
     }
@@ -851,11 +1098,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.cloud_off,
-                  color: terracotta,
-                  size: 54,
-                ),
+                const Icon(Icons.cloud_off, color: terracotta, size: 54),
                 const SizedBox(height: 16),
                 const Text(
                   'Could not load POIs from Firebase.',
@@ -867,22 +1110,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                Text(
-                  errorMessage!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.black54,
-                  ),
-                ),
+                Text(errorMessage!, textAlign: TextAlign.center),
                 const SizedBox(height: 20),
                 ElevatedButton.icon(
                   onPressed: _loadPois,
                   icon: const Icon(Icons.refresh),
                   label: const Text('Retry'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: maroon,
-                    foregroundColor: Colors.white,
-                  ),
                 ),
               ],
             ),
@@ -895,13 +1128,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       return Scaffold(
         appBar: _appBar(),
         body: const Center(
-          child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Text(
-              'No POIs were found in the Firestore collection "pois".',
-              textAlign: TextAlign.center,
-            ),
-          ),
+          child: Text('No POIs were found in the Firestore collection "pois".'),
         ),
       );
     }
@@ -928,9 +1155,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _nowPlayingCard(poi),
-            const SizedBox(height: 24),
+            const SizedBox(height: 18),
             const Text(
-              'UP NEXT (ranked by distance × angle)',
+              'UP NEXT (live ranked by heading)',
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.black54,
@@ -940,20 +1167,17 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             const SizedBox(height: 8),
             Expanded(
               child: queue.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No other POIs are currently in the queue.',
-                        style: TextStyle(
-                          color: Colors.black54,
-                        ),
-                      ),
-                    )
+                  ? const Center(child: Text('No other POIs are currently in the queue.'))
                   : ListView.separated(
                       itemCount: queue.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: 10),
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final queuedPoi = queue[index];
+                        final bearing = _virtualBearing(
+                          queuedPoi,
+                          _allPois.indexOf(queuedPoi),
+                        );
+                        final angle = _angleDifference(heading, bearing);
 
                         return InkWell(
                           onTap: () => _selectPoi(queuedPoi),
@@ -961,10 +1185,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           child: Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: index == 0 ? gold.withOpacity(0.18) : Colors.white,
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
-                                color: Colors.black12,
+                                color: index == 0 ? terracotta : Colors.black12,
+                                width: index == 0 ? 2 : 1,
                               ),
                             ),
                             child: Row(
@@ -972,30 +1197,32 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                 CircleAvatar(
                                   backgroundColor: sandstone,
                                   child: Text(
-                                    '${index + 2}',
-                                    style: const TextStyle(
-                                      color: maroon,
-                                    ),
+                                    '${index + 1}',
+                                    style: const TextStyle(color: maroon),
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         queuedPoi.name,
+                                        style: const TextStyle(fontWeight: FontWeight.w600),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        'Bearing ${bearing.toInt()}°  •  ${angle.toInt()}° away',
                                         style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
+                                          fontSize: 11,
+                                          color: Colors.black54,
                                         ),
                                       ),
                                       if (queuedPoi.getScript('en').isNotEmpty)
                                         Text(
                                           queuedPoi.getScript('en'),
                                           maxLines: 1,
-                                          overflow:
-                                              TextOverflow.ellipsis,
+                                          overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
                                             fontSize: 12,
                                             color: Colors.black54,
@@ -1004,8 +1231,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                     ],
                                   ),
                                 ),
-                                const Icon(
-                                  Icons.play_arrow,
+                                Icon(
+                                  index == 0 ? Icons.volume_up : Icons.play_arrow,
                                   color: terracotta,
                                 ),
                               ],
@@ -1024,17 +1251,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   AppBar _appBar({VoidCallback? onListPressed}) {
     return AppBar(
       backgroundColor: maroon,
-      title: const Text(
-        'DishaVaani',
-        style: TextStyle(color: Colors.white),
-      ),
+      title: const Text('DishaVaani', style: TextStyle(color: Colors.white)),
       actions: [
         if (onListPressed != null)
           IconButton(
-            icon: const Icon(
-              Icons.list,
-              color: Colors.white,
-            ),
+            icon: const Icon(Icons.list, color: Colors.white),
             onPressed: onListPressed,
           ),
       ],
@@ -1047,10 +1268,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: terracotta,
-          width: 2,
-        ),
+        border: Border.all(color: terracotta, width: 2),
         boxShadow: const [
           BoxShadow(
             color: Colors.black12,
@@ -1068,11 +1286,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               color: gold.withOpacity(0.3),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(
-              Icons.temple_hindu,
-              color: maroon,
-              size: 32,
-            ),
+            child: const Icon(Icons.temple_hindu, color: maroon, size: 32),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -1081,10 +1295,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               children: [
                 const Text(
                   'Now approaching',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.black54,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.black54),
                 ),
                 Text(
                   poi.name,
@@ -1127,9 +1338,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           IconButton(
             iconSize: 40,
             icon: Icon(
-              isPlaying
-                  ? Icons.pause_circle_filled
-                  : Icons.play_circle_filled,
+              isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
               color: terracotta,
             ),
             onPressed: () => _togglePlayback(poi),
@@ -1197,8 +1406,7 @@ class ManualPoiListScreen extends StatelessWidget {
                     )
                   : ListView.separated(
                       itemCount: pois.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: 10),
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final poi = pois[index];
 
@@ -1224,8 +1432,7 @@ class ManualPoiListScreen extends StatelessWidget {
                                   height: 48,
                                   decoration: BoxDecoration(
                                     color: sandstone,
-                                    borderRadius:
-                                        BorderRadius.circular(6),
+                                    borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: const Icon(
                                     Icons.temple_hindu,
@@ -1235,8 +1442,7 @@ class ManualPoiListScreen extends StatelessWidget {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         poi.name,
@@ -1248,8 +1454,7 @@ class ManualPoiListScreen extends StatelessWidget {
                                         Text(
                                           poi.getScript('en'),
                                           maxLines: 2,
-                                          overflow:
-                                              TextOverflow.ellipsis,
+                                          overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
                                             fontSize: 12,
                                             color: Colors.black54,
