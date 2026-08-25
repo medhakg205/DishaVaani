@@ -5,8 +5,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/poi.dart';
 
 class PoiService {
-  final CollectionReference _poisRef =
-      FirebaseFirestore.instance.collection('pois');
+  final CollectionReference _poisRef = FirebaseFirestore.instance.collection(
+    'pois',
+  );
 
   final SupabaseClient _supabase = Supabase.instance.client;
 
@@ -19,10 +20,8 @@ class PoiService {
 
     return snapshot.docs
         .map(
-          (doc) => Poi.fromFirestore(
-            doc.id,
-            doc.data() as Map<String, dynamic>,
-          ),
+          (doc) =>
+              Poi.fromFirestore(doc.id, doc.data() as Map<String, dynamic>),
         )
         .toList();
   }
@@ -34,12 +33,10 @@ class PoiService {
   Future<List<Poi>> fetchPoisByMonument(String monumentId) async {
     final pois = await fetchAllPois();
 
-    final normalizedMonumentId =
-        monumentId.trim().toLowerCase();
+    final normalizedMonumentId = Poi.normalizeMonumentId(monumentId);
 
     return pois.where((poi) {
-      return poi.monumentId.trim().toLowerCase() ==
-          normalizedMonumentId;
+      return Poi.normalizeMonumentId(poi.monumentId) == normalizedMonumentId;
     }).toList();
   }
 
@@ -48,18 +45,14 @@ class PoiService {
   // ============================================================
 
   Stream<List<Poi>> watchPois() {
-    return _poisRef.snapshots().map(
-      (snapshot) {
-        return snapshot.docs
-            .map(
-              (doc) => Poi.fromFirestore(
-                doc.id,
-                doc.data() as Map<String, dynamic>,
-              ),
-            )
-            .toList();
-      },
-    );
+    return _poisRef.snapshots().map((snapshot) {
+      return snapshot.docs
+          .map(
+            (doc) =>
+                Poi.fromFirestore(doc.id, doc.data() as Map<String, dynamic>),
+          )
+          .toList();
+    });
   }
 
   // ============================================================
@@ -73,35 +66,24 @@ class PoiService {
     final bytes = file.bytes;
 
     if (bytes == null) {
-      throw StateError(
-        'The selected audio file could not be read.',
-      );
+      throw StateError('The selected audio file could not be read.');
     }
 
     // Make a safe folder name.
-    final safeMonument = monumentId
-        .trim()
-        .replaceAll(
-          RegExp(r'[^a-zA-Z0-9_-]'),
-          '_',
-        );
-
-    // Make a safe filename.
-    final safeName = file.name.replaceAll(
-      RegExp(r'[^a-zA-Z0-9._-]'),
+    final safeMonument = monumentId.trim().replaceAll(
+      RegExp(r'[^a-zA-Z0-9_-]'),
       '_',
     );
 
-    final timestamp =
-        DateTime.now().millisecondsSinceEpoch;
+    // Make a safe filename.
+    final safeName = file.name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
 
-    final filePath =
-        '$safeMonument/${timestamp}_$safeName';
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+
+    final filePath = '$safeMonument/${timestamp}_$safeName';
 
     // Determine audio MIME type.
-    final contentType = _getAudioContentType(
-      file.extension,
-    );
+    final contentType = _getAudioContentType(file.extension);
 
     // Upload to the PUBLIC Supabase bucket.
     await _supabase.storage
@@ -109,16 +91,11 @@ class PoiService {
         .uploadBinary(
           filePath,
           bytes,
-          fileOptions: FileOptions(
-            contentType: contentType,
-            upsert: false,
-          ),
+          fileOptions: FileOptions(contentType: contentType, upsert: false),
         );
 
     // Generate the public URL.
-    final publicUrl = _supabase.storage
-        .from('audio')
-        .getPublicUrl(filePath);
+    final publicUrl = _supabase.storage.from('audio').getPublicUrl(filePath);
 
     return publicUrl;
   }
@@ -156,10 +133,7 @@ class PoiService {
   // SAVE / UPDATE POI
   // ============================================================
 
-  Future<void> savePoi({
-    String? id,
-    required Map<String, dynamic> data,
-  }) async {
+  Future<void> savePoi({String? id, required Map<String, dynamic> data}) async {
     /*
       IMPORTANT:
 
@@ -186,26 +160,23 @@ class PoiService {
       your ACTUAL Firestore schema.
     */
 
-    final String monumentId =
-        (data['monumentId'] ?? '').toString().trim();
+    final String monumentId = Poi.normalizeMonumentId(
+      (data['monumentId'] ?? '').toString(),
+    );
 
-    final String name =
-        (data['name'] ?? '').toString().trim();
+    final String name = (data['name'] ?? '').toString().trim();
 
-    final String scriptText =
-        (data['scriptText'] ?? '').toString().trim();
+    final String scriptText = (data['scriptText'] ?? '').toString().trim();
 
-    final String audioUrl =
-        (data['audioUrl'] ?? '').toString().trim();
+    final String audioUrl = (data['audioUrl'] ?? '').toString().trim();
 
-    final double lat =
-        (data['lat'] as num).toDouble();
+    final double lat = (data['lat'] as num).toDouble();
 
-    final double long =
-        (data['long'] as num).toDouble();
+    final double long = (data['long'] as num).toDouble();
 
-    final double bearingTolerance =
-        (data['bearingTolerance'] as num?)?.toDouble() ?? 20;
+    // Kept at a default for the mobile matching engine; it is no longer an
+    // admin-facing control.
+    const double bearingTolerance = 20;
 
     final payload = <String, dynamic>{
       'monumentId': monumentId,
@@ -214,14 +185,10 @@ class PoiService {
       'long': long,
 
       // YOUR EXISTING SCHEMA
-      'scripts': {
-        'en': scriptText,
-      },
+      'scripts': {'en': scriptText},
 
       // YOUR EXISTING SCHEMA
-      'audioUrls': {
-        'en': audioUrl,
-      },
+      'audioUrls': {'en': audioUrl},
 
       // YOUR EXISTING SCHEMA
       'bearingTolerance': bearingTolerance,
@@ -234,9 +201,6 @@ class PoiService {
     // ----------------------------------------------------------
 
     if (id == null) {
-      payload['createdAt'] =
-          FieldValue.serverTimestamp();
-
       await _poisRef.add(payload);
       return;
     }
@@ -245,10 +209,11 @@ class PoiService {
     // UPDATE
     // ----------------------------------------------------------
 
-    await _poisRef.doc(id).set(
-      payload,
-      SetOptions(merge: true),
-    );
+    await _poisRef.doc(id).set({
+      ...payload,
+      'createdAt': FieldValue.delete(),
+      'compassHeading': FieldValue.delete(),
+    }, SetOptions(merge: true));
   }
 
   // ============================================================

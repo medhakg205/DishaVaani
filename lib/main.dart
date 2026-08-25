@@ -1,6 +1,8 @@
 import 'admin_dashboard.dart';
+
 import 'package:audioplayers/audioplayers.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -11,16 +13,18 @@ import 'services/poi_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase initialization
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
-  // Supabase initialization
-  await Supabase.initialize(
-    url: 'https://gsmzrogltivaufladsah.supabase.co',
-    publishableKey: 'sb_publishable_MmaEvtjzf72ur6vYQN3lPg_DCVYC0BL',
-  );
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    await Supabase.initialize(
+      url: 'https://gsmzrogltivaufladsah.supabase.co',
+      publishableKey: 'sb_publishable_MmaEvtjzf72ur6vYQN3lPg_DCVYC0BL',
+    );
+  } catch (error) {
+    runApp(StartupErrorApp(error: error));
+    return;
+  }
 
   runApp(const DishaVaaniApp());
 }
@@ -44,7 +48,31 @@ class DishaVaaniApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: maroon),
         useMaterial3: true,
       ),
-      home: const AdminDashboard(),
+      home: kIsWeb ? const AdminDashboard() : const SplashScreen(),
+    );
+  }
+}
+
+class StartupErrorApp extends StatelessWidget {
+  final Object error;
+
+  const StartupErrorApp({super.key, required this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'DishaVaani could not start.\n\n$error',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -70,11 +98,7 @@ class SplashScreen extends StatelessWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: maroon, width: 3),
                 ),
-                child: const Icon(
-                  Icons.explore,
-                  size: 80,
-                  color: terracotta,
-                ),
+                child: const Icon(Icons.explore, size: 80, color: terracotta),
               ),
               const SizedBox(height: 24),
               const Text(
@@ -90,10 +114,7 @@ class SplashScreen extends StatelessWidget {
               const Text(
                 'Point your phone. Listen in your language.\nNo QR codes.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: Colors.black54,
-                ),
+                style: TextStyle(fontSize: 15, color: Colors.black54),
               ),
               const SizedBox(height: 40),
               SizedBox(
@@ -110,9 +131,7 @@ class SplashScreen extends StatelessWidget {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const HomeScreen(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const HomeScreen()),
                     );
                   },
                   child: const Text('ALLOW LOCATION + COMPASS'),
@@ -192,23 +211,17 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
           children: [
             const Text(
               'Select your preferred narration language',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.black54,
-              ),
+              style: TextStyle(fontSize: 13, color: Colors.black54),
             ),
             const SizedBox(height: 16),
             Expanded(
               child: ListView.separated(
                 itemCount: languages.length,
-                separatorBuilder: (_, __) =>
-                    const SizedBox(height: 10),
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final lang = languages[index];
-                  final bool isEnabled =
-                      lang['enabled'] as bool;
-                  final bool isSelected =
-                      selectedLanguage == lang['name'];
+                  final bool isEnabled = lang['enabled'] as bool;
+                  final bool isSelected = selectedLanguage == lang['name'];
 
                   return Opacity(
                     opacity: isEnabled ? 1.0 : 0.5,
@@ -216,13 +229,11 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                       onTap: isEnabled
                           ? () {
                               setState(() {
-                                selectedLanguage =
-                                    lang['name'];
+                                selectedLanguage = lang['name'];
                               });
                             }
                           : () {
-                              ScaffoldMessenger.of(context)
-                                  .showSnackBar(
+                              ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
                                     '${lang['name']} narration coming soon via Bhashini.',
@@ -235,12 +246,9 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius:
-                              BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: isSelected
-                                ? terracotta
-                                : Colors.black12,
+                            color: isSelected ? terracotta : Colors.black12,
                             width: isSelected ? 2 : 1,
                           ),
                         ),
@@ -248,14 +256,12 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                           children: [
                             Expanded(
                               child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     lang['name'],
                                     style: const TextStyle(
-                                      fontWeight:
-                                          FontWeight.w600,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                   Text(
@@ -278,8 +284,7 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                               ),
                             if (isSelected)
                               const Padding(
-                                padding:
-                                    EdgeInsets.only(left: 8),
+                                padding: EdgeInsets.only(left: 8),
                                 child: Icon(
                                   Icons.check_circle,
                                   color: terracotta,
@@ -300,8 +305,7 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: maroon,
                   foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 16),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -351,11 +355,12 @@ class _HomeScreenState extends State<HomeScreen> {
       final poiCounts = <String, int>{};
 
       for (final poi in pois) {
-        final monumentId = poi.monumentId.trim();
+        // Group by the same canonical ID used by the admin dashboard. This
+        // merges legacy values such as "Qutub Minar" and "qutub_minar".
+        final monumentId = Poi.normalizeMonumentId(poi.monumentId);
 
         if (monumentId.isNotEmpty) {
-          poiCounts[monumentId] =
-              (poiCounts[monumentId] ?? 0) + 1;
+          poiCounts[monumentId] = (poiCounts[monumentId] ?? 0) + 1;
         }
       }
 
@@ -363,8 +368,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         monumentPoiCounts = poiCounts;
-        selectedMonumentId =
-            poiCounts.isNotEmpty ? poiCounts.keys.first : null;
+        selectedMonumentId = poiCounts.isNotEmpty ? poiCounts.keys.first : null;
         isLoading = false;
       });
     } catch (error) {
@@ -378,14 +382,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _monumentName(String monumentId) {
-    return monumentId
+    return Poi.normalizeMonumentId(monumentId)
         .replaceAll('_', ' ')
         .split(' ')
         .where((word) => word.isNotEmpty)
-        .map(
-          (word) =>
-              '${word[0].toUpperCase()}${word.substring(1)}',
-        )
+        .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
         .join(' ');
   }
 
@@ -395,10 +396,7 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         backgroundColor: maroon,
         elevation: 4,
-        title: const Text(
-          'DishaVaani',
-          style: TextStyle(color: Colors.white),
-        ),
+        title: const Text('DishaVaani', style: TextStyle(color: Colors.white)),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -412,11 +410,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Center(
-                child: Icon(
-                  Icons.map,
-                  size: 60,
-                  color: maroon,
-                ),
+                child: Icon(Icons.map, size: 60, color: maroon),
               ),
             ),
             const SizedBox(height: 20),
@@ -432,9 +426,7 @@ class _HomeScreenState extends State<HomeScreen> {
             if (isLoading)
               const Expanded(
                 child: Center(
-                  child: CircularProgressIndicator(
-                    color: terracotta,
-                  ),
+                  child: CircularProgressIndicator(color: terracotta),
                 ),
               )
             else if (errorMessage != null)
@@ -476,22 +468,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                   borderRadius: BorderRadius.circular(10),
                   child: Container(
-                    margin:
-                        const EdgeInsets.only(bottom: 12),
+                    margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius:
-                          BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color:
-                            selectedMonumentId == entry.key
-                                ? terracotta
-                                : Colors.black12,
-                        width:
-                            selectedMonumentId == entry.key
-                                ? 2
-                                : 1,
+                        color: selectedMonumentId == entry.key
+                            ? terracotta
+                            : Colors.black12,
+                        width: selectedMonumentId == entry.key ? 2 : 1,
                       ),
                     ),
                     child: Row(
@@ -501,8 +487,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           height: 56,
                           decoration: BoxDecoration(
                             color: sandstone,
-                            borderRadius:
-                                BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Icon(
                             Icons.account_balance,
@@ -513,26 +498,18 @@ class _HomeScreenState extends State<HomeScreen> {
                         Expanded(
                           child: Text(
                             _monumentName(entry.key),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
                         ),
                         Text(
                           '${entry.value} POI'
                           '${entry.value == 1 ? '' : 's'}',
-                          style: const TextStyle(
-                            color: Colors.black45,
-                          ),
+                          style: const TextStyle(color: Colors.black45),
                         ),
                         if (selectedMonumentId == entry.key)
                           const Padding(
-                            padding:
-                                EdgeInsets.only(left: 8),
-                            child: Icon(
-                              Icons.check,
-                              color: terracotta,
-                            ),
+                            padding: EdgeInsets.only(left: 8),
+                            child: Icon(Icons.check, color: terracotta),
                           ),
                       ],
                     ),
@@ -546,8 +523,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: maroon,
                   foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 16),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -558,10 +534,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) =>
-                                PointDetectScreen(
-                              monumentId:
-                                  selectedMonumentId!,
+                            builder: (_) => PointDetectScreen(
+                              monumentId: selectedMonumentId!,
                             ),
                           ),
                         );
@@ -581,18 +555,13 @@ class _HomeScreenState extends State<HomeScreen> {
 class PointDetectScreen extends StatefulWidget {
   final String monumentId;
 
-  const PointDetectScreen({
-    super.key,
-    required this.monumentId,
-  });
+  const PointDetectScreen({super.key, required this.monumentId});
 
   @override
-  State<PointDetectScreen> createState() =>
-      _PointDetectScreenState();
+  State<PointDetectScreen> createState() => _PointDetectScreenState();
 }
 
-class _PointDetectScreenState
-    extends State<PointDetectScreen> {
+class _PointDetectScreenState extends State<PointDetectScreen> {
   double heading = 214;
 
   @override
@@ -602,19 +571,10 @@ class _PointDetectScreenState
         backgroundColor: maroon,
         elevation: 4,
         leading: IconButton(
-          icon: const Icon(
-            Icons.home,
-            color: Colors.white,
-          ),
-          onPressed: () => Navigator.popUntil(
-            context,
-            (r) => r.isFirst,
-          ),
+          icon: const Icon(Icons.home, color: Colors.white),
+          onPressed: () => Navigator.popUntil(context, (r) => r.isFirst),
         ),
-        title: const Text(
-          'DishaVaani',
-          style: TextStyle(color: Colors.white),
-        ),
+        title: const Text('DishaVaani', style: TextStyle(color: Colors.white)),
       ),
       body: Column(
         children: [
@@ -639,21 +599,13 @@ class _PointDetectScreenState
                   height: 160,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: terracotta,
-                      width: 3,
-                    ),
+                    border: Border.all(color: terracotta, width: 3),
                   ),
                   child: Center(
                     child: Column(
-                      mainAxisAlignment:
-                          MainAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: const [
-                        Icon(
-                          Icons.explore,
-                          color: terracotta,
-                          size: 36,
-                        ),
+                        Icon(Icons.explore, color: terracotta, size: 36),
                         SizedBox(height: 6),
                         Text(
                           'HOLD\nSTEADY',
@@ -678,17 +630,14 @@ class _PointDetectScreenState
                 style: OutlinedButton.styleFrom(
                   foregroundColor: maroon,
                   side: const BorderSide(color: maroon),
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
                 onPressed: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) =>
-                          NowPlayingScreen(
-                        monumentId: widget.monumentId,
-                      ),
+                          NowPlayingScreen(monumentId: widget.monumentId),
                     ),
                   );
                 },
@@ -707,18 +656,13 @@ class _PointDetectScreenState
 class NowPlayingScreen extends StatefulWidget {
   final String monumentId;
 
-  const NowPlayingScreen({
-    super.key,
-    this.monumentId = 'qutub_minar',
-  });
+  const NowPlayingScreen({super.key, this.monumentId = 'qutub_minar'});
 
   @override
-  State<NowPlayingScreen> createState() =>
-      _NowPlayingScreenState();
+  State<NowPlayingScreen> createState() => _NowPlayingScreenState();
 }
 
-class _NowPlayingScreenState
-    extends State<NowPlayingScreen> {
+class _NowPlayingScreenState extends State<NowPlayingScreen> {
   final PoiService _poiService = PoiService();
   final AudioPlayer _audioPlayer = AudioPlayer();
 
@@ -737,8 +681,7 @@ class _NowPlayingScreenState
       if (!mounted) return;
 
       setState(() {
-        isPlaying =
-            state == PlayerState.playing;
+        isPlaying = state == PlayerState.playing;
       });
     });
 
@@ -766,18 +709,13 @@ class _NowPlayingScreenState
     });
 
     try {
-      final pois =
-          await _poiService.fetchPoisByMonument(
-        widget.monumentId,
-      );
+      final pois = await _poiService.fetchPoisByMonument(widget.monumentId);
 
       if (!mounted) return;
 
       setState(() {
-        currentPoi =
-            pois.isNotEmpty ? pois.first : null;
-        queue =
-            pois.length > 1 ? pois.sublist(1) : [];
+        currentPoi = pois.isNotEmpty ? pois.first : null;
+        queue = pois.length > 1 ? pois.sublist(1) : [];
         isLoading = false;
       });
     } catch (error) {
@@ -798,9 +736,7 @@ class _NowPlayingScreenState
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'No audio URL is available for this POI.',
-          ),
+          content: Text('No audio URL is available for this POI.'),
         ),
       );
       return;
@@ -811,9 +747,7 @@ class _NowPlayingScreenState
         await _audioPlayer.pause();
       } else {
         // Plays the public Supabase Storage URL.
-        await _audioPlayer.play(
-          UrlSource(audioUrl),
-        );
+        await _audioPlayer.play(UrlSource(audioUrl));
       }
     } catch (error) {
       if (!mounted) return;
@@ -822,13 +756,9 @@ class _NowPlayingScreenState
         isPlaying = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not play audio: $error',
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not play audio: $error')));
     }
   }
 
@@ -841,12 +771,7 @@ class _NowPlayingScreenState
       final updatedPois = [
         currentPoi,
         ...queue,
-      ]
-          .whereType<Poi>()
-          .where(
-            (item) => item.id != poi.id,
-          )
-          .toList();
+      ].whereType<Poi>().where((item) => item.id != poi.id).toList();
 
       currentPoi = poi;
       queue = updatedPois;
@@ -859,11 +784,7 @@ class _NowPlayingScreenState
     if (isLoading) {
       return Scaffold(
         appBar: _appBar(),
-        body: const Center(
-          child: CircularProgressIndicator(
-            color: terracotta,
-          ),
-        ),
+        body: const Center(child: CircularProgressIndicator(color: terracotta)),
       );
     }
 
@@ -876,11 +797,7 @@ class _NowPlayingScreenState
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.cloud_off,
-                  color: terracotta,
-                  size: 54,
-                ),
+                const Icon(Icons.cloud_off, color: terracotta, size: 54),
                 const SizedBox(height: 16),
                 const Text(
                   'Could not load POIs from Firebase.',
@@ -895,9 +812,7 @@ class _NowPlayingScreenState
                 Text(
                   errorMessage!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.black54,
-                  ),
+                  style: const TextStyle(color: Colors.black54),
                 ),
                 const SizedBox(height: 20),
                 ElevatedButton.icon(
@@ -939,8 +854,7 @@ class _NowPlayingScreenState
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) =>
-                  ManualPoiListScreen(
+              builder: (_) => ManualPoiListScreen(
                 pois: [poi, ...queue],
                 onPoiSelected: _selectPoi,
               ),
@@ -951,8 +865,7 @@ class _NowPlayingScreenState
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _nowPlayingCard(poi),
             const SizedBox(height: 24),
@@ -970,96 +883,60 @@ class _NowPlayingScreenState
                   ? const Center(
                       child: Text(
                         'No other POIs are currently in the queue.',
-                        style: TextStyle(
-                          color: Colors.black54,
-                        ),
+                        style: TextStyle(color: Colors.black54),
                       ),
                     )
                   : ListView.separated(
                       itemCount: queue.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: 10),
-                      itemBuilder:
-                          (context, index) {
-                        final queuedPoi =
-                            queue[index];
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final queuedPoi = queue[index];
 
                         return InkWell(
-                          onTap: () =>
-                              _selectPoi(
-                            queuedPoi,
-                          ),
-                          borderRadius:
-                              BorderRadius.circular(10),
+                          onTap: () => _selectPoi(queuedPoi),
+                          borderRadius: BorderRadius.circular(10),
                           child: Container(
-                            padding:
-                                const EdgeInsets.all(12),
-                            decoration:
-                                BoxDecoration(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius:
-                                  BorderRadius.circular(
-                                10,
-                              ),
-                              border: Border.all(
-                                color: Colors.black12,
-                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.black12),
                             ),
                             child: Row(
                               children: [
                                 CircleAvatar(
-                                  backgroundColor:
-                                      sandstone,
+                                  backgroundColor: sandstone,
                                   child: Text(
                                     '${index + 2}',
-                                    style:
-                                        const TextStyle(
-                                      color: maroon,
-                                    ),
+                                    style: const TextStyle(color: maroon),
                                   ),
                                 ),
-                                const SizedBox(
-                                  width: 12,
-                                ),
+                                const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
-                                        CrossAxisAlignment
-                                            .start,
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         queuedPoi.name,
-                                        style:
-                                            const TextStyle(
-                                          fontWeight:
-                                              FontWeight
-                                                  .w600,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
-                                      if (queuedPoi
-                                          .scriptText
-                                          .isNotEmpty)
+                                      if (queuedPoi.scriptText.isNotEmpty)
                                         Text(
-                                          queuedPoi
-                                              .scriptText,
+                                          queuedPoi.scriptText,
                                           maxLines: 1,
-                                          overflow:
-                                              TextOverflow
-                                                  .ellipsis,
-                                          style:
-                                              const TextStyle(
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
                                             fontSize: 12,
-                                            color: Colors
-                                                .black54,
+                                            color: Colors.black54,
                                           ),
                                         ),
                                     ],
                                   ),
                                 ),
-                                const Icon(
-                                  Icons.play_arrow,
-                                  color: terracotta,
-                                ),
+                                const Icon(Icons.play_arrow, color: terracotta),
                               ],
                             ),
                           ),
@@ -1073,22 +950,14 @@ class _NowPlayingScreenState
     );
   }
 
-  AppBar _appBar({
-    VoidCallback? onListPressed,
-  }) {
+  AppBar _appBar({VoidCallback? onListPressed}) {
     return AppBar(
       backgroundColor: maroon,
-      title: const Text(
-        'DishaVaani',
-        style: TextStyle(color: Colors.white),
-      ),
+      title: const Text('DishaVaani', style: TextStyle(color: Colors.white)),
       actions: [
         if (onListPressed != null)
           IconButton(
-            icon: const Icon(
-              Icons.list,
-              color: Colors.white,
-            ),
+            icon: const Icon(Icons.list, color: Colors.white),
             onPressed: onListPressed,
           ),
       ],
@@ -1101,16 +970,9 @@ class _NowPlayingScreenState
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: terracotta,
-          width: 2,
-        ),
+        border: Border.all(color: terracotta, width: 2),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 6,
-            offset: Offset(0, 3),
-          ),
+          BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 3)),
         ],
       ),
       child: Row(
@@ -1120,27 +982,18 @@ class _NowPlayingScreenState
             height: 64,
             decoration: BoxDecoration(
               color: gold.withOpacity(0.3),
-              borderRadius:
-                  BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(
-              Icons.temple_hindu,
-              color: maroon,
-              size: 32,
-            ),
+            child: const Icon(Icons.temple_hindu, color: maroon, size: 32),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
                   'Now approaching',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.black54,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.black54),
                 ),
                 Text(
                   poi.name,
@@ -1155,12 +1008,8 @@ class _NowPlayingScreenState
                   Text(
                     poi.scriptText,
                     maxLines: 2,
-                    overflow:
-                        TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.black54,
-                    ),
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
                   ),
                 const SizedBox(height: 8),
                 LinearProgressIndicator(
@@ -1175,13 +1024,10 @@ class _NowPlayingScreenState
           IconButton(
             iconSize: 40,
             icon: Icon(
-              isPlaying
-                  ? Icons.pause_circle_filled
-                  : Icons.play_circle_filled,
+              isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
               color: terracotta,
             ),
-            onPressed: () =>
-                _togglePlayback(poi),
+            onPressed: () => _togglePlayback(poi),
           ),
         ],
       ),
@@ -1207,34 +1053,22 @@ class ManualPoiListScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: maroon,
         elevation: 4,
-        title: const Text(
-          'All POIs',
-          style: TextStyle(color: Colors.white),
-        ),
+        title: const Text('All POIs', style: TextStyle(color: Colors.white)),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             Container(
-              padding:
-                  const EdgeInsets.symmetric(
-                horizontal: 12,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius:
-                    BorderRadius.circular(8),
-                border: Border.all(
-                  color: Colors.black12,
-                ),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.black12),
               ),
               child: const Row(
                 children: [
-                  Icon(
-                    Icons.search,
-                    color: Colors.black45,
-                  ),
+                  Icon(Icons.search, color: Colors.black45),
                   SizedBox(width: 8),
                   Expanded(
                     child: TextField(
@@ -1250,19 +1084,11 @@ class ManualPoiListScreen extends StatelessWidget {
             const SizedBox(height: 16),
             Expanded(
               child: pois.isEmpty
-                  ? const Center(
-                      child:
-                          Text('No POIs available.'),
-                    )
+                  ? const Center(child: Text('No POIs available.'))
                   : ListView.separated(
                       itemCount: pois.length,
-                      separatorBuilder:
-                          (_, __) =>
-                              const SizedBox(
-                        height: 10,
-                      ),
-                      itemBuilder:
-                          (context, index) {
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
                         final poi = pois[index];
 
                         return InkWell(
@@ -1270,87 +1096,54 @@ class ManualPoiListScreen extends StatelessWidget {
                             onPoiSelected(poi);
                             Navigator.pop(context);
                           },
-                          borderRadius:
-                              BorderRadius.circular(
-                            10,
-                          ),
+                          borderRadius: BorderRadius.circular(10),
                           child: Container(
-                            padding:
-                                const EdgeInsets.all(
-                              12,
-                            ),
-                            decoration:
-                                BoxDecoration(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius:
-                                  BorderRadius.circular(
-                                10,
-                              ),
-                              border: Border.all(
-                                color: Colors.black12,
-                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.black12),
                             ),
                             child: Row(
                               children: [
                                 Container(
                                   width: 48,
                                   height: 48,
-                                  decoration:
-                                      BoxDecoration(
+                                  decoration: BoxDecoration(
                                     color: sandstone,
-                                    borderRadius:
-                                        BorderRadius
-                                            .circular(
-                                      6,
-                                    ),
+                                    borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: const Icon(
                                     Icons.temple_hindu,
-                                    color:
-                                        terracotta,
+                                    color: terracotta,
                                   ),
                                 ),
-                                const SizedBox(
-                                  width: 12,
-                                ),
+                                const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
-                                        CrossAxisAlignment
-                                            .start,
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         poi.name,
-                                        style:
-                                            const TextStyle(
-                                          fontWeight:
-                                              FontWeight
-                                                  .w600,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
-                                      if (poi
-                                          .scriptText
-                                          .isNotEmpty)
+                                      if (poi.scriptText.isNotEmpty)
                                         Text(
                                           poi.scriptText,
                                           maxLines: 2,
-                                          overflow:
-                                              TextOverflow
-                                                  .ellipsis,
-                                          style:
-                                              const TextStyle(
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
                                             fontSize: 12,
-                                            color: Colors
-                                                .black54,
+                                            color: Colors.black54,
                                           ),
                                         ),
                                     ],
                                   ),
                                 ),
-                                const Icon(
-                                  Icons.play_arrow,
-                                  color: terracotta,
-                                ),
+                                const Icon(Icons.play_arrow, color: terracotta),
                               ],
                             ),
                           ),

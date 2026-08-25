@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:csv/csv.dart';
+import 'package:excel/excel.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
@@ -7,6 +11,27 @@ import 'services/poi_service.dart';
 const _maroon = Color(0xFF6B2737);
 const _terracotta = Color(0xFFC1652F);
 const _sandstone = Color(0xFFF5EFE6);
+
+class _ImportHelp extends StatelessWidget {
+  const _ImportHelp();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _sandstone,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Text(
+        'Bulk import: choose a CSV or XLSX file from the button above. '
+        'Use columns monumentId, name, scriptText, latitude, longitude, and '
+        'optional audioUrl.',
+        style: TextStyle(fontSize: 13),
+      ),
+    );
+  }
+}
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -26,8 +51,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Poi? _editing;
   PlatformFile? _audioFile;
   bool _saving = false;
-  double _heading = 0;
-  double _tolerance = 25;
+  String? _selectedMonumentId;
 
   @override
   void dispose() {
@@ -46,13 +70,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
   void _edit(Poi poi) {
     setState(() {
       _editing = poi;
-      _monument.text = poi.monumentId;
       _name.text = poi.name;
       _english.text = poi.scriptText;
       _latitude.text = poi.lat.toString();
       _longitude.text = poi.long.toString();
-      _heading = poi.compassHeading;
-      _tolerance = poi.bearingTolerance;
       _audioFile = null;
     });
   }
@@ -61,18 +82,30 @@ class _AdminDashboardState extends State<AdminDashboard> {
     setState(() {
       _editing = null;
       _audioFile = null;
-      _heading = 0;
-      _tolerance = 25;
-      for (final controller in [
-        _monument,
-        _name,
-        _english,
-        _latitude,
-        _longitude,
-      ]) {
+      for (final controller in [_name, _english, _latitude, _longitude]) {
         controller.clear();
       }
     });
+  }
+
+  void _openMonument(String value) {
+    final monumentId = Poi.normalizeMonumentId(value);
+    if (monumentId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a monument ID first.')),
+      );
+      return;
+    }
+    setState(() {
+      _selectedMonumentId = monumentId;
+      _monument.text = monumentId;
+    });
+    _clear();
+  }
+
+  void _backToMonuments() {
+    _clear();
+    setState(() => _selectedMonumentId = null);
   }
 
   Future<void> _chooseAudio() async {
@@ -84,6 +117,144 @@ class _AdminDashboardState extends State<AdminDashboard> {
       setState(() => _audioFile = result.files.single);
   }
 
+  Future<void> _importDataset() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['csv', 'xlsx'],
+      withData: true,
+    );
+    if (result == null || !mounted) return;
+
+    setState(() => _saving = true);
+    try {
+      final rows = _readDataset(result.files.single);
+      var imported = 0;
+      final errors = <String>[];
+      for (var index = 0; index < rows.length; index++) {
+        try {
+          final data = _datasetPoiData(rows[index]);
+          await _service.savePoi(data: data);
+          imported++;
+        } catch (error) {
+          errors.add('Row ${index + 2}: $error');
+        }
+      }
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Import complete'),
+          content: Text(
+            '$imported POI${imported == 1 ? '' : 's'} added.'
+            '${errors.isEmpty ? '' : '\n\n${errors.length} row(s) skipped:\n${errors.take(5).join('\n')}'}',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not import this file: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  List<Map<String, String>> _readDataset(PlatformFile file) {
+    final bytes = file.bytes;
+    if (bytes == null) throw StateError('The selected file could not be read.');
+    final extension = (file.extension ?? '').toLowerCase();
+    final List<List<String>> table;
+    if (extension == 'csv') {
+      table = const CsvToListConverter(shouldParseNumbers: false)
+          .convert(utf8.decode(bytes, allowMalformed: true))
+          .map(
+            (row) => row.map((cell) => cell?.toString().trim() ?? '').toList(),
+          )
+          .toList();
+    } else if (extension == 'xlsx') {
+      final workbook = Excel.decodeBytes(bytes);
+      if (workbook.tables.isEmpty)
+        throw StateError('The Excel file has no sheets.');
+      final sheet = workbook.tables.values.first;
+      table = sheet.rows
+          .map((row) => row.map(_excelCellText).toList())
+          .toList();
+    } else {
+      throw StateError('Please select a CSV or XLSX file.');
+    }
+    if (table.length < 2)
+      throw StateError('Add a header row and at least one POI row.');
+    final headers = table.first.map(_normaliseHeader).toList();
+    return table.skip(1).where((row) => row.any((cell) => cell.isNotEmpty)).map(
+      (row) {
+        return Map<String, String>.fromIterables(
+          headers,
+          List<String>.generate(
+            headers.length,
+            (i) => i < row.length ? row[i] : '',
+          ),
+        );
+      },
+    ).toList();
+  }
+
+  String _excelCellText(dynamic cell) {
+    final value = cell?.value;
+    return switch (value) {
+      TextCellValue(:final value) => value.toString().trim(),
+      IntCellValue(:final value) => value.toString(),
+      DoubleCellValue(:final value) => value.toString(),
+      BoolCellValue(:final value) => value.toString(),
+      _ => value?.toString().trim() ?? '',
+    };
+  }
+
+  Map<String, dynamic> _datasetPoiData(Map<String, String> row) {
+    String value(List<String> keys) => keys
+        .map((key) => row[key] ?? '')
+        .firstWhere((item) => item.trim().isNotEmpty, orElse: () => '');
+    final monumentId = value(['monumentid', 'monument', 'site']);
+    final name = value(['name', 'poiname', 'title']);
+    final script = value([
+      'scripttext',
+      'script',
+      'description',
+      'englishscript',
+    ]);
+    final latitude = double.tryParse(value(['lat', 'latitude']));
+    final longitude = double.tryParse(value(['long', 'lng', 'longitude']));
+    if (monumentId.trim().isEmpty ||
+        name.trim().isEmpty ||
+        script.trim().isEmpty) {
+      throw StateError('monumentId, name, and scriptText are required.');
+    }
+    if (latitude == null || latitude < -90 || latitude > 90) {
+      throw StateError('latitude must be between -90 and 90.');
+    }
+    if (longitude == null || longitude < -180 || longitude > 180) {
+      throw StateError('longitude must be between -180 and 180.');
+    }
+    return {
+      'monumentId': monumentId,
+      'name': name,
+      'scriptText': script,
+      'lat': latitude,
+      'long': longitude,
+      'audioUrl': value(['audiourl', 'audio']),
+    };
+  }
+
+  String _normaliseHeader(String value) =>
+      value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
@@ -93,23 +264,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
         audioUrl =
             (await _service.uploadAudio(
               file: _audioFile!,
-              monumentId: _monument.text,
+              monumentId: _selectedMonumentId!,
             )) ??
             audioUrl;
       }
       await _service.savePoi(
         id: _editing?.id,
         data: {
-          'monumentId': _monument.text.trim().toLowerCase().replaceAll(
-            ' ',
-            '_',
-          ),
+          'monumentId': _selectedMonumentId!,
           'name': _name.text.trim(),
           'scriptText': _english.text.trim(),
           'lat': double.parse(_latitude.text.trim()),
           'long': double.parse(_longitude.text.trim()),
-          'compassHeading': _heading,
-          'bearingTolerance': _tolerance,
           'audioUrl': audioUrl,
         },
       );
@@ -126,9 +292,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
       _clear();
     } catch (error) {
       if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Could not save: $error')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not save: $error')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -174,23 +339,52 @@ class _AdminDashboardState extends State<AdminDashboard> {
       appBar: AppBar(
         backgroundColor: _maroon,
         foregroundColor: Colors.white,
-        title: const Text('DishaVaani Admin'),
+        leading: _selectedMonumentId == null
+            ? null
+            : IconButton(
+                onPressed: _backToMonuments,
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'All monuments',
+              ),
+        title: Text(
+          _selectedMonumentId == null
+              ? 'DishaVaani Admin'
+              : '$_selectedMonumentId · POIs',
+        ),
         actions: [
           TextButton.icon(
-            onPressed: _clear,
-            icon: const Icon(Icons.add, color: Colors.white),
-            label: const Text('New POI', style: TextStyle(color: Colors.white)),
+            onPressed: _saving ? null : _importDataset,
+            icon: const Icon(Icons.upload_file, color: Colors.white),
+            label: const Text(
+              'Import CSV / Excel',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
+          if (_selectedMonumentId != null)
+            TextButton.icon(
+              onPressed: _clear,
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: const Text(
+                'New POI',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
         ],
       ),
       body: StreamBuilder<List<Poi>>(
         stream: _service.watchPois(),
         builder: (context, snapshot) {
           final list = snapshot.data ?? [];
+          if (_selectedMonumentId == null) {
+            return _buildMonuments(snapshot, list);
+          }
+          final monumentPois = list
+              .where((poi) => poi.monumentId == _selectedMonumentId)
+              .toList();
           return LayoutBuilder(
             builder: (context, constraints) {
               final form = _buildForm();
-              final records = _buildRecords(snapshot, list);
+              final records = _buildRecords(snapshot, monumentPois);
               if (constraints.maxWidth < 900) {
                 return ListView(
                   padding: const EdgeInsets.all(24),
@@ -215,6 +409,104 @@ class _AdminDashboardState extends State<AdminDashboard> {
           );
         },
       ),
+    );
+  }
+
+  Widget _buildMonuments(AsyncSnapshot<List<Poi>> snapshot, List<Poi> pois) {
+    if (snapshot.hasError) {
+      return const Center(
+        child: Text(
+          'Could not load Firestore records. Check your Firebase rules and web app configuration.',
+        ),
+      );
+    }
+    if (!snapshot.hasData)
+      return const Center(child: CircularProgressIndicator());
+
+    final counts = <String, int>{};
+    for (final poi in pois) {
+      counts[poi.monumentId] = (counts[poi.monumentId] ?? 0) + 1;
+    }
+    final monumentIds = counts.keys.toList()..sort();
+
+    return ListView(
+      padding: const EdgeInsets.all(28),
+      children: [
+        const Text(
+          'Monuments',
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.bold,
+            color: _maroon,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Select a monument to manage its POIs, or enter a new monument ID to create it.',
+          style: TextStyle(color: Colors.black54),
+        ),
+        const SizedBox(height: 20),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _monument,
+                    onSubmitted: _openMonument,
+                    decoration: const InputDecoration(
+                      labelText: 'Monument ID',
+                      hintText: 'e.g. qutub_minar',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                FilledButton(
+                  onPressed: () => _openMonument(_monument.text),
+                  style: FilledButton.styleFrom(backgroundColor: _maroon),
+                  child: const Text('Open'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        const _ImportHelp(),
+        const SizedBox(height: 24),
+        Text(
+          'Existing monuments (${monumentIds.length})',
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 10),
+        if (monumentIds.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: Text(
+                'No monuments yet. Create one above or import a dataset.',
+              ),
+            ),
+          )
+        else
+          ...monumentIds.map(
+            (id) => Card(
+              child: ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: _sandstone,
+                  child: Icon(Icons.account_balance, color: _terracotta),
+                ),
+                title: Text(id),
+                subtitle: Text(
+                  '${counts[id]} POI${counts[id] == 1 ? '' : 's'}',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _openMonument(id),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -244,7 +536,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
               style: TextStyle(color: Colors.black54),
             ),
             const SizedBox(height: 20),
-            _field(_monument, 'Monument ID', hint: 'e.g. qutub_minar'),
             _field(_name, 'POI name'),
             _field(_english, 'English script / description', lines: 3),
             Row(
@@ -265,30 +556,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Compass heading: ${_heading.round()}°',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            Slider(
-              value: _heading,
-              max: 360,
-              divisions: 360,
-              activeColor: _terracotta,
-              onChanged: (v) => setState(() => _heading = v),
-            ),
-            Text(
-              'Bearing tolerance: ${_tolerance.round()}°',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            Slider(
-              value: _tolerance,
-              min: 10,
-              max: 45,
-              divisions: 35,
-              activeColor: _terracotta,
-              onChanged: (v) => setState(() => _tolerance = v),
             ),
             OutlinedButton.icon(
               onPressed: _chooseAudio,
