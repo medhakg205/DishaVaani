@@ -558,6 +558,8 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool isPlaying = false;
   String? _playingPoiId;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
 
   // Placeholder wiring point: once the matching engine is connected,
   // this becomes the real top-ranked / in-range POI list.
@@ -566,20 +568,37 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
 
   @override
   void initState() {
-    super.initState();
-    _loadPois();
-    _startSensors();
+  super.initState();
+  _loadPois();
+  _startSensors();
 
-    _audioPlayer.onPlayerStateChanged.listen((state) {
-      if (!mounted) return;
-      setState(() => isPlaying = state == PlayerState.playing);
-    });
+  _audioPlayer.onPlayerStateChanged.listen((state) {
+    if (!mounted) return;
+    setState(() => isPlaying = state == PlayerState.playing);
+  });
 
-    _audioPlayer.onPlayerComplete.listen((_) {
-      if (!mounted) return;
-      setState(() => isPlaying = false);
+  _audioPlayer.onPlayerComplete.listen((_) {
+    if (!mounted) return;
+    setState(() {
+      isPlaying = false;
+      _position = Duration.zero;
     });
-  }
+  });
+
+  _audioPlayer.onPositionChanged.listen((position) {
+    if (!mounted) return;
+    setState(() {
+      _position = position;
+    });
+  });
+
+  _audioPlayer.onDurationChanged.listen((duration) {
+    if (!mounted) return;
+    setState(() {
+      _duration = duration;
+    });
+  });
+}
 
   Future<void> _loadPois() async {
     try {
@@ -647,6 +666,16 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
         .where((word) => word.isNotEmpty)
         .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
         .join(' ');
+  }
+  String _formatDuration(Duration duration) {
+
+    final minutes = duration.inMinutes.remainder(60).toString();
+
+    final seconds = duration.inSeconds
+        .remainder(60)
+        .toString()
+        .padLeft(2, '0');
+    return '$minutes:$seconds';
   }
 
   @override
@@ -762,60 +791,125 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
             ),
 
             // ---- Now playing bar ----
-            InkWell(
-              onTap: topPoi == null ? null : () => _togglePlayback(topPoi),
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: terracotta, width: 2),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 6,
-                      offset: Offset(0, 3),
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: terracotta, width: 2),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 6,
+                    offset: Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  // Monument icon
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: gold.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: gold.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(Icons.temple_hindu, color: maroon, size: 26),
+                    child: const Icon(
+                      Icons.temple_hindu,
+                      color: maroon,
+                      size: 26,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Now approaching',
-                            style: TextStyle(fontSize: 11, color: Colors.black54),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  // POI name + slider
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Now approaching',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.black54,
                           ),
-                          Text(
-                            topPoi?.name ?? 'Nothing playing yet',
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: maroon,
+                        ),
+
+                        Text(
+                          topPoi?.name ?? 'Nothing playing yet',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: maroon,
+                          ),
+                        ),
+
+                        const SizedBox(height: 2),
+
+                        SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            trackHeight: 3,
+                            thumbShape: const RoundSliderThumbShape(
+                              enabledThumbRadius: 5,
                             ),
+                            overlayShape: const RoundSliderOverlayShape(
+                              overlayRadius: 10,
+                            ),
+                            activeTrackColor: terracotta,
+                            inactiveTrackColor: sandstone,
+                            thumbColor: terracotta,
                           ),
-                        ],
-                      ),
+                          child: Slider(
+                            min: 0,
+                            max: _duration.inMilliseconds > 0
+                                ? _duration.inMilliseconds.toDouble()
+                                : 1,
+                            value: _position.inMilliseconds
+                                .clamp(
+                                  0,
+                                  _duration.inMilliseconds > 0
+                                      ? _duration.inMilliseconds
+                                      : 1,
+                                )
+                                .toDouble(),
+                            onChanged: (value) {
+                              setState(() {
+                                _position = Duration(
+                                  milliseconds: value.toInt(),
+                                );
+                              });
+                            },
+                            onChangeEnd: (value) async {
+                              await _audioPlayer.seek(
+                                Duration(
+                                  milliseconds: value.toInt(),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
-                    Container(
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  // Play / Pause button
+                  GestureDetector(
+                    onTap: topPoi == null
+                        ? null
+                        : () => _togglePlayback(topPoi),
+                    child: Container(
                       width: 34,
                       height: 34,
-                      decoration: const BoxDecoration(color: maroon, shape: BoxShape.circle),
+                      decoration: const BoxDecoration(
+                        color: maroon,
+                        shape: BoxShape.circle,
+                      ),
                       child: Icon(
                         isPlaying && _playingPoiId == topPoi?.id
                             ? Icons.pause
@@ -824,11 +918,10 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                         size: 18,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-
             InkWell(
               onTap: () {
                 Navigator.push(
