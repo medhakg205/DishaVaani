@@ -9,6 +9,7 @@ from firebase_admin import credentials, firestore
 from flask import Flask, jsonify, request
 from gtts import gTTS
 from flask_cors import CORS
+
 # --- Firebase setup using an explicit service account (needed since we're
 # running outside Google's infrastructure, on Render) ---
 cred_dict = json.loads(os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON"))
