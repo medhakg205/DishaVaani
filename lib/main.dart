@@ -7,6 +7,10 @@ import 'package:flutter/material.dart';
 import 'firebase_options.dart';
 import 'models/poi.dart';
 import 'services/poi_service.dart';
+import 'package:geolocator/geolocator.dart';
+import 'sensor_service.dart';
+import 'dart:async';
+import 'matching_engine.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,8 +48,43 @@ class DishaVaaniApp extends StatelessWidget {
 
 // ---------- SCREEN 1: Splash ----------
 
-class SplashScreen extends StatelessWidget {
+class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  bool _isRequestingPermission = false;
+
+  Future<void> _requestPermissionsAndContinue(BuildContext context) async {
+    setState(() => _isRequestingPermission = true);
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    if (!mounted) return;
+    setState(() => _isRequestingPermission = false);
+
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Location permission is required to use DishaVaani.'),
+        ),
+      );
+      return;
+    }
+
+    if (!context.mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -100,17 +139,22 @@ class SplashScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const HomeScreen(),
-                      ),
-                    );
-                  },
-                  child: const Text('ALLOW LOCATION + COMPASS'),
+                  onPressed: _isRequestingPermission
+                      ? null
+                      : () => _requestPermissionsAndContinue(context),
+                  child: _isRequestingPermission
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('ALLOW LOCATION + COMPASS'),
                 ),
               ),
+
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -151,7 +195,6 @@ class LanguageSelectScreen extends StatefulWidget {
 class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
   String selectedLanguage = 'English';
 
-  // Bhashini-supported Indian languages (English enabled for now, rest are placeholders)
   final List<Map<String, dynamic>> languages = [
     {'name': 'English', 'native': 'English', 'enabled': true},
     {'name': 'Hindi', 'native': 'हिन्दी', 'enabled': false},
@@ -302,8 +345,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final monumentId = poi.monumentId.trim();
 
         if (monumentId.isNotEmpty) {
-          poiCounts[monumentId] =
-              (poiCounts[monumentId] ?? 0) + 1;
+          poiCounts[monumentId] = (poiCounts[monumentId] ?? 0) + 1;
         }
       }
 
@@ -311,8 +353,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         monumentPoiCounts = poiCounts;
-        selectedMonumentId =
-            poiCounts.isNotEmpty ? poiCounts.keys.first : null;
+        selectedMonumentId = poiCounts.isNotEmpty ? poiCounts.keys.first : null;
         isLoading = false;
       });
     } catch (error) {
@@ -330,10 +371,7 @@ class _HomeScreenState extends State<HomeScreen> {
         .replaceAll('_', ' ')
         .split(' ')
         .where((word) => word.isNotEmpty)
-        .map(
-          (word) =>
-              '${word[0].toUpperCase()}${word.substring(1)}',
-        )
+        .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
         .join(' ');
   }
 
@@ -377,9 +415,7 @@ class _HomeScreenState extends State<HomeScreen> {
             if (isLoading)
               const Expanded(
                 child: Center(
-                  child: CircularProgressIndicator(
-                    color: terracotta,
-                  ),
+                  child: CircularProgressIndicator(color: terracotta),
                 ),
               )
             else if (errorMessage != null)
@@ -427,9 +463,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: selectedMonumentId == entry.key
-                            ? terracotta
-                            : Colors.black12,
+                        color: selectedMonumentId == entry.key ? terracotta : Colors.black12,
                         width: selectedMonumentId == entry.key ? 2 : 1,
                       ),
                     ),
@@ -451,25 +485,17 @@ class _HomeScreenState extends State<HomeScreen> {
                         Expanded(
                           child: Text(
                             _monumentName(entry.key),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
                         ),
                         Text(
-                          '${entry.value} POI'
-                          '${entry.value == 1 ? '' : 's'}',
-                          style: const TextStyle(
-                            color: Colors.black45,
-                          ),
+                          '${entry.value} POI${entry.value == 1 ? '' : 's'}',
+                          style: const TextStyle(color: Colors.black45),
                         ),
                         if (selectedMonumentId == entry.key)
                           const Padding(
                             padding: EdgeInsets.only(left: 8),
-                            child: Icon(
-                              Icons.check,
-                              color: terracotta,
-                            ),
+                            child: Icon(Icons.check, color: terracotta),
                           ),
                       ],
                     ),
@@ -484,9 +510,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   backgroundColor: maroon,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: selectedMonumentId == null
                     ? null
@@ -521,10 +545,55 @@ class PointDetectScreen extends StatefulWidget {
 }
 
 class _PointDetectScreenState extends State<PointDetectScreen> {
+  double heading = 0;
+  double? lat;
+  double? long;
+  bool useDemoMode = false;
+
+  final SensorService _sensorService = SensorService();
+  StreamSubscription<SensorReading>? _sensorSub;
+  final PoiService _poiService = PoiService();
   final DemoController demoController = DemoController();
+  List<Poi> _monumentPois = [];
+
+  double get effectiveHeading => useDemoMode ? demoController.heading : heading;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPois();
+    _startSensors();
+    demoController.addListener(() => setState(() {}));
+  }
+
+  Future<void> _loadPois() async {
+    try {
+      final pois = await _poiService.fetchPoisByMonument(widget.monumentId);
+      if (!mounted) return;
+      setState(() {
+        _monumentPois = pois;
+      });
+    } catch (error) {
+      // We'll handle error display later — for now just keep the list empty.
+    }
+  }
+
+  Future<void> _startSensors() async {
+    await _sensorService.start();
+    _sensorSub = _sensorService.readings.listen((reading) {
+      if (!mounted) return;
+      setState(() {
+        heading = reading.heading;
+        lat = reading.lat;
+        long = reading.long;
+      });
+    });
+  }
 
   @override
   void dispose() {
+    _sensorSub?.cancel();
+    _sensorService.dispose();
     demoController.dispose();
     super.dispose();
   }
@@ -540,63 +609,81 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
           onPressed: () => Navigator.popUntil(context, (r) => r.isFirst),
         ),
         title: const Text('DishaVaani', style: TextStyle(color: Colors.white)),
+        actions: [
+          IconButton(
+            icon: Icon(useDemoMode ? Icons.sensors : Icons.tune, color: Colors.white),
+            tooltip: useDemoMode ? 'Switch to real sensors' : 'Switch to demo mode',
+            onPressed: () => setState(() => useDemoMode = !useDemoMode),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
           children: [
-            DemoPanel(controller: demoController),
-
-            AnimatedBuilder(
-              animation: demoController,
-              builder: (context, _) {
-                final radians = demoController.heading * 3.141592653589793 / 180;
-                return Expanded(
-                  child: Container(
-                    width: double.infinity,
-                    color: sandstone,
-                    child: Center(
-                      child: Transform.rotate(
-                        angle: radians,
-                        child: Container(
-                          width: 160,
-                          height: 160,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: terracotta, width: 3),
-                          ),
-                          child: const Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.explore, color: terracotta, size: 36),
-                                SizedBox(height: 6),
-                                Text(
-                                  'DEMO\nHEADING',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: maroon,
-                                  ),
-                                ),
-                              ],
+            if (useDemoMode) DemoPanel(controller: demoController),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              color: Colors.black87,
+              child: Column(
+                children: [
+                  Text(
+                    'HEADING ${effectiveHeading.toInt()}°',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    useDemoMode
+                        ? 'DEMO MODE'
+                        : (lat != null && long != null
+                            ? 'LAT ${lat!.toStringAsFixed(5)}, LONG ${long!.toStringAsFixed(5)}'
+                            : 'Waiting for GPS...'),
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                color: sandstone,
+                child: Center(
+                  child: Transform.rotate(
+                    angle: effectiveHeading * 3.141592653589793 / 180,
+                    child: Container(
+                      width: 160,
+                      height: 160,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: terracotta, width: 3),
+                      ),
+                      child: const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.explore, color: terracotta, size: 36),
+                            SizedBox(height: 6),
+                            Text(
+                              'HOLD\nSTEADY',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontWeight: FontWeight.bold, color: maroon),
                             ),
-                          ),
+                          ],
                         ),
                       ),
                     ),
                   ),
-                );
-              },
+                ),
+              ),
             ),
-
             Padding(
               padding: const EdgeInsets.all(16),
               child: SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: maroon,
-                    foregroundColor: Colors.white,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: maroon,
+                    side: const BorderSide(color: maroon),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                   onPressed: () {
@@ -605,12 +692,12 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                       MaterialPageRoute(
                         builder: (_) => NowPlayingScreen(
                           monumentId: widget.monumentId,
-                          demoController: demoController,
+                          demoController: useDemoMode ? demoController : null,
                         ),
                       ),
                     );
                   },
-                  child: const Text('OPEN LIVE QUEUE'),
+                  child: const Text('MANUAL LIST'),
                 ),
               ),
             ),
@@ -744,22 +831,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
     final selectedId = currentPoi?.id;
 
-    final candidates = _allPois
-        .where((poi) => poi.id != selectedId)
-        .toList();
+    final candidates = _allPois.where((poi) => poi.id != selectedId).toList();
 
     candidates.sort((a, b) {
       final ia = _allPois.indexOf(a);
       final ib = _allPois.indexOf(b);
 
-      final scoreA = _angleDifference(
-        heading,
-        _virtualBearing(a, ia),
-      );
-      final scoreB = _angleDifference(
-        heading,
-        _virtualBearing(b, ib),
-      );
+      final scoreA = _angleDifference(heading, _virtualBearing(a, ia));
+      final scoreB = _angleDifference(heading, _virtualBearing(b, ib));
 
       return scoreA.compareTo(scoreB);
     });
@@ -783,7 +862,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   Future<void> _playPoi(Poi poi) async {
-    final audioUrl = poi.audioUrl.trim();
+    final audioUrl = poi.getAudioUrl('en').trim();
     if (audioUrl.isEmpty) return;
 
     try {
@@ -795,7 +874,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   Future<void> _togglePlayback(Poi poi) async {
-    final audioUrl = poi.audioUrl.trim();
+    final audioUrl = poi.getAudioUrl('en').trim();
 
     if (audioUrl.isEmpty) {
       if (!mounted) return;
@@ -910,9 +989,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (widget.demoController != null)
-              DemoPanel(controller: widget.demoController!),
-
+            if (widget.demoController != null) DemoPanel(controller: widget.demoController!),
             if (widget.demoController != null)
               AnimatedBuilder(
                 animation: widget.demoController!,
@@ -936,10 +1013,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   );
                 },
               ),
-
             _nowPlayingCard(poi),
             const SizedBox(height: 18),
-
             const Text(
               'UP NEXT (live ranked by heading)',
               style: TextStyle(
@@ -949,7 +1024,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               ),
             ),
             const SizedBox(height: 8),
-
             Expanded(
               child: queue.isEmpty
                   ? const Center(child: Text('No other POIs are currently in the queue.'))
@@ -1003,9 +1077,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                           color: Colors.black54,
                                         ),
                                       ),
-                                      if (queuedPoi.scriptText.isNotEmpty)
+                                      if (queuedPoi.getScript('en').isNotEmpty)
                                         Text(
-                                          queuedPoi.scriptText,
+                                          queuedPoi.getScript('en'),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
@@ -1091,12 +1165,24 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                if (poi.scriptText.isNotEmpty)
+                if (poi.getScript('en').isNotEmpty)
                   Text(
-                    poi.scriptText,
+                    poi.getScript('en'),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.black54,
+                    ),
+                  )
+                else
+                  const Text(
+                    'Description not available yet.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                      color: Colors.black45,
+                    ),
                   ),
                 const SizedBox(height: 8),
                 LinearProgressIndicator(
@@ -1179,8 +1265,7 @@ class ManualPoiListScreen extends StatelessWidget {
                     )
                   : ListView.separated(
                       itemCount: pois.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: 10),
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final poi = pois[index];
 
@@ -1206,8 +1291,7 @@ class ManualPoiListScreen extends StatelessWidget {
                                   height: 48,
                                   decoration: BoxDecoration(
                                     color: sandstone,
-                                    borderRadius:
-                                        BorderRadius.circular(6),
+                                    borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: const Icon(
                                     Icons.temple_hindu,
@@ -1217,8 +1301,7 @@ class ManualPoiListScreen extends StatelessWidget {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         poi.name,
@@ -1226,12 +1309,11 @@ class ManualPoiListScreen extends StatelessWidget {
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
-                                      if (poi.scriptText.isNotEmpty)
+                                      if (poi.getScript('en').isNotEmpty)
                                         Text(
-                                          poi.scriptText,
+                                          poi.getScript('en'),
                                           maxLines: 2,
-                                          overflow:
-                                              TextOverflow.ellipsis,
+                                          overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
                                             fontSize: 12,
                                             color: Colors.black54,
