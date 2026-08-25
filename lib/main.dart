@@ -1,5 +1,3 @@
-import 'demo/demo_controller.dart';
-import 'demo/demo_panel.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -548,15 +546,11 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   double heading = 0;
   double? lat;
   double? long;
-  bool useDemoMode = false;
 
   final SensorService _sensorService = SensorService();
   StreamSubscription<SensorReading>? _sensorSub;
   final PoiService _poiService = PoiService();
-  final DemoController demoController = DemoController();
   List<Poi> _monumentPois = [];
-
-  double get effectiveHeading => useDemoMode ? demoController.heading : heading;
 
   // Placeholder wiring point: once the matching engine is connected,
   // this becomes the real top-ranked / in-range POI list.
@@ -568,7 +562,6 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
     super.initState();
     _loadPois();
     _startSensors();
-    demoController.addListener(() => setState(() {}));
   }
 
   Future<void> _loadPois() async {
@@ -599,7 +592,6 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   void dispose() {
     _sensorSub?.cancel();
     _sensorService.dispose();
-    demoController.dispose();
     super.dispose();
   }
 
@@ -615,7 +607,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   @override
   Widget build(BuildContext context) {
     final topPoi = _topPoi;
-    final radians = effectiveHeading * 3.141592653589793 / 180;
+    final radians = heading * 3.141592653589793 / 180;
 
     return Scaffold(
       appBar: AppBar(
@@ -626,19 +618,10 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
           onPressed: () => Navigator.popUntil(context, (r) => r.isFirst),
         ),
         title: const Text('DishaVaani', style: TextStyle(color: Colors.white)),
-        actions: [
-          IconButton(
-            icon: Icon(useDemoMode ? Icons.sensors : Icons.tune, color: Colors.white),
-            tooltip: useDemoMode ? 'Switch to real sensors' : 'Switch to demo mode',
-            onPressed: () => setState(() => useDemoMode = !useDemoMode),
-          ),
-        ],
       ),
       body: SafeArea(
         child: Column(
           children: [
-            if (useDemoMode) DemoPanel(controller: demoController),
-
             // ---- Monument name + coordinates ----
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
@@ -654,13 +637,11 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    useDemoMode
-                        ? 'DEMO MODE'
-                        : (lat != null && long != null
-                            ? '${lat!.toStringAsFixed(4)}° N, ${long!.toStringAsFixed(4)}° E'
-                            : 'Waiting for GPS...'),
+                    lat != null && long != null
+                        ? '${lat!.toStringAsFixed(4)}° N, ${long!.toStringAsFixed(4)}° E'
+                        : 'Waiting for GPS...',
                     style: const TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
+                  ),  
                 ],
               ),
             ),
@@ -702,7 +683,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
-                '${effectiveHeading.toInt()}°',
+                '${heading.toInt()}°',
                 style: const TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
@@ -806,7 +787,6 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                   MaterialPageRoute(
                     builder: (_) => NowPlayingScreen(
                       monumentId: widget.monumentId,
-                      demoController: useDemoMode ? demoController : null,
                     ),
                   ),
                 );
@@ -907,12 +887,10 @@ class _NeedlePainter extends CustomPainter {
 
 class NowPlayingScreen extends StatefulWidget {
   final String monumentId;
-  final DemoController? demoController;
 
   const NowPlayingScreen({
     super.key,
     this.monumentId = 'qutub_minar',
-    this.demoController,
   });
 
   @override
@@ -931,7 +909,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   List<Poi> queue = [];
   List<Poi> _allPois = [];
 
-  double get heading => widget.demoController?.heading ?? 214.0;
+  double get heading => 214.0;
 
   @override
   void initState() {
@@ -951,18 +929,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       });
     });
 
-    widget.demoController?.addListener(_onDemoChanged);
     _loadPois();
-  }
-
-  void _onDemoChanged() {
-    if (!mounted || _allPois.isEmpty) return;
-    _rerankQueue(autoPlayChangedItem: true);
   }
 
   @override
   void dispose() {
-    widget.demoController?.removeListener(_onDemoChanged);
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -1049,7 +1020,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     // During Auto Play, automatically play the new best POI whenever
     // the slider rotation causes the first queue item to change.
     if (autoPlayChangedItem &&
-        widget.demoController?.autoPlay == true &&
         queue.isNotEmpty &&
         queue.first.id != oldFirst) {
       _playPoi(queue.first);
@@ -1184,30 +1154,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (widget.demoController != null) DemoPanel(controller: widget.demoController!),
-            if (widget.demoController != null)
-              AnimatedBuilder(
-                animation: widget.demoController!,
-                builder: (context, _) {
-                  return Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: maroon,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      'DEMO LIVE  •  HEADING ${heading.toInt()}°  •  '
-                      '${queue.length} POIs queued',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  );
-                },
-              ),
             _nowPlayingCard(poi),
             const SizedBox(height: 18),
             const Text(
