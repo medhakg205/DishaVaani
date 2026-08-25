@@ -558,6 +558,11 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
 
   double get effectiveHeading => useDemoMode ? demoController.heading : heading;
 
+  // Placeholder wiring point: once the matching engine is connected,
+  // this becomes the real top-ranked / in-range POI list.
+  List<Poi> get _inRangePois => _monumentPois;
+  Poi? get _topPoi => _inRangePois.isNotEmpty ? _inRangePois.first : null;
+
   @override
   void initState() {
     super.initState();
@@ -574,7 +579,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
         _monumentPois = pois;
       });
     } catch (error) {
-      // We'll handle error display later — for now just keep the list empty.
+      // handle error display later
     }
   }
 
@@ -598,8 +603,20 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
     super.dispose();
   }
 
+  String _monumentName(String monumentId) {
+    return monumentId
+        .replaceAll('_', ' ')
+        .split(' ')
+        .where((word) => word.isNotEmpty)
+        .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
+        .join(' ');
+  }
+
   @override
   Widget build(BuildContext context) {
+    final topPoi = _topPoi;
+    final radians = effectiveHeading * 3.141592653589793 / 180;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: maroon,
@@ -621,83 +638,201 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
         child: Column(
           children: [
             if (useDemoMode) DemoPanel(controller: demoController),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              color: Colors.black87,
+
+            // ---- Monument name + coordinates ----
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
               child: Column(
                 children: [
                   Text(
-                    'HEADING ${effectiveHeading.toInt()}°',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    _monumentName(widget.monumentId),
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: maroon,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     useDemoMode
                         ? 'DEMO MODE'
                         : (lat != null && long != null
-                            ? 'LAT ${lat!.toStringAsFixed(5)}, LONG ${long!.toStringAsFixed(5)}'
+                            ? '${lat!.toStringAsFixed(4)}° N, ${long!.toStringAsFixed(4)}° E'
                             : 'Waiting for GPS...'),
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
                   ),
                 ],
               ),
             ),
+
+            // ---- POI detected status strip ----
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              decoration: BoxDecoration(
+                color: topPoi != null ? terracotta.withOpacity(0.12) : Colors.black.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    topPoi != null ? Icons.radar : Icons.search,
+                    size: 15,
+                    color: topPoi != null ? terracotta : Colors.black45,
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      topPoi != null ? 'POI detected — ${topPoi.name}' : 'Scanning for nearby POIs...',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: topPoi != null ? terracotta : Colors.black45,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ---- Compass ----
+            // ---- Degree readout (above the circle) ----
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                '${effectiveHeading.toInt()}°',
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: maroon,
+                ),
+              ),
+            ),
+
+            // ---- Compass ----
             Expanded(
-              child: Container(
-                width: double.infinity,
-                color: sandstone,
-                child: Center(
-                  child: Transform.rotate(
-                    angle: effectiveHeading * 3.141592653589793 / 180,
-                    child: Container(
+              child: Center(
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    const Positioned(top: 0, child: _CompassLabel('N')),
+                    const Positioned(bottom: 0, child: _CompassLabel('S')),
+                    const Positioned(left: 0, child: _CompassLabel('W')),
+                    const Positioned(right: 0, child: _CompassLabel('E')),
+                    Container(
                       width: 160,
                       height: 160,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(color: terracotta, width: 3),
                       ),
-                      child: const Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.explore, color: terracotta, size: 36),
-                            SizedBox(height: 6),
-                            Text(
-                              'HOLD\nSTEADY',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(fontWeight: FontWeight.bold, color: maroon),
-                            ),
-                          ],
+                      child: Center(
+                        child: Transform.rotate(
+                          angle: radians,
+                          child: const _CompassNeedle(size: 90),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: maroon,
-                    side: const BorderSide(color: maroon),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+
+            // ---- Now playing bar ----
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: terracotta, width: 2),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 6,
+                    offset: Offset(0, 3),
                   ),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => NowPlayingScreen(
-                          monumentId: widget.monumentId,
-                          demoController: useDemoMode ? demoController : null,
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: gold.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.temple_hindu, color: maroon, size: 26),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Now approaching',
+                          style: TextStyle(fontSize: 11, color: Colors.black54),
                         ),
+                        Text(
+                          topPoi?.name ?? 'Nothing playing yet',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: maroon,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: const BoxDecoration(color: maroon, shape: BoxShape.circle),
+                    child: const Icon(Icons.play_arrow, color: Colors.white, size: 18),
+                  ),
+                ],
+              ),
+            ),
+
+            // ---- Manual list handle ----
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => NowPlayingScreen(
+                      monumentId: widget.monumentId,
+                      demoController: useDemoMode ? demoController : null,
+                    ),
+                  ),
+                );
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: const BoxDecoration(
+                  border: Border(top: BorderSide(color: Colors.black12)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _inRangePois.length > 1
+                          ? 'View ${_inRangePois.length} nearby'
+                          : 'View manual list',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black54,
                       ),
-                    );
-                  },
-                  child: const Text('MANUAL LIST'),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.keyboard_arrow_up, size: 16, color: Colors.black54),
+                  ],
                 ),
               ),
             ),
@@ -706,6 +841,66 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
       ),
     );
   }
+}
+
+class _CompassLabel extends StatelessWidget {
+  final String label;
+  const _CompassLabel(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(4),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 11, color: Colors.black45, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+class _CompassNeedle extends StatelessWidget {
+  final double size;
+  const _CompassNeedle({this.size = 70});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(painter: _NeedlePainter()),
+    );
+  }
+}
+
+class _NeedlePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final tipLength = size.height / 2;
+    final halfWidth = size.width / 6;
+
+    final northPaint = Paint()..color = maroon;
+    final southPaint = Paint()..color = Colors.black26;
+
+    final northPath = Path()
+      ..moveTo(center.dx, center.dy - tipLength)
+      ..lineTo(center.dx - halfWidth, center.dy)
+      ..lineTo(center.dx + halfWidth, center.dy)
+      ..close();
+
+    final southPath = Path()
+      ..moveTo(center.dx, center.dy + tipLength)
+      ..lineTo(center.dx - halfWidth, center.dy)
+      ..lineTo(center.dx + halfWidth, center.dy)
+      ..close();
+
+    canvas.drawPath(southPath, southPaint);
+    canvas.drawPath(northPath, northPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ---------- SCREEN 4: Now Playing / Queue ----------
