@@ -556,7 +556,9 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   List<Poi> _monumentPois = [];
 
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final TranslationService _translationService = TranslationService();
   bool isPlaying = false;
+  bool isResolvingAudio = false;
   String? _playingPoiId;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
@@ -623,26 +625,60 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
       });
     });
   }
+    // Resolves audio in the currently selected language — same logic as
+  // NowPlayingScreen, kept in sync so both screens play the same
+  // language for the same POI instead of Screen 3 defaulting to English.
+  Future<String?> _resolveAudioUrl(Poi poi) async {
+    final lang = AppSettings.selectedLanguage;
+
+    final existingUrl = poi.audioUrls[lang];
+    if (existingUrl != null && existingUrl.trim().isNotEmpty) {
+      return existingUrl;
+    }
+
+    final englishScript = poi.getScript('en');
+    if (englishScript.isEmpty) {
+      return null;
+    }
+
+    setState(() => isResolvingAudio = true);
+
+    try {
+      final newUrl = await _translationService.getTranslatedAudioUrl(
+        poiId: poi.id,
+        sourceScript: englishScript,
+        targetLanguage: lang,
+      );
+      poi.audioUrls[lang] = newUrl;
+      return newUrl;
+    } catch (e) {
+      debugPrint('Translation call failed: $e');
+      return null;
+    } finally {
+      if (mounted) setState(() => isResolvingAudio = false);
+    }
+  }
 
   Future<void> _togglePlayback(Poi poi) async {
-    final audioUrl = poi.getAudioUrl('en').trim();
+    if (isPlaying && _playingPoiId == poi.id) {
+      await _audioPlayer.pause();
+      return;
+    }
 
-    if (audioUrl.isEmpty) {
+    final audioUrl = await _resolveAudioUrl(poi);
+
+    if (audioUrl == null || audioUrl.trim().isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No audio URL is available for this POI.')),
+        const SnackBar(content: Text('No audio available in this language yet.')),
       );
       return;
     }
 
     try {
-      if (isPlaying && _playingPoiId == poi.id) {
-        await _audioPlayer.pause();
-      } else {
-        _playingPoiId = poi.id;
-        await _audioPlayer.play(UrlSource(audioUrl));
-      }
-        } catch (error) {
+      _playingPoiId = poi.id;
+      await _audioPlayer.play(UrlSource(audioUrl));
+    } catch (error) {
       if (!mounted) return;
       setState(() => isPlaying = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -650,6 +686,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
       );
     }
   }
+
   Future<void> _seekBy(Duration delta) async {
     final maxMs = _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 0;
     final newMs = (_position.inMilliseconds + delta.inMilliseconds).clamp(0, maxMs);
@@ -906,7 +943,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                               ),
                               const SizedBox(width: 18),
                               GestureDetector(
-                                onTap: topPoi == null ? null : () => _togglePlayback(topPoi),
+                                onTap: topPoi == null || isResolvingAudio ? null : () => _togglePlayback(topPoi),
                                 child: Container(
                                   width: 44,
                                   height: 44,
@@ -914,13 +951,21 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                                     color: maroon,
                                     shape: BoxShape.circle,
                                   ),
-                                  child: Icon(
-                                    isPlaying && _playingPoiId == topPoi?.id
-                                        ? Icons.pause
-                                        : Icons.play_arrow,
-                                    color: Colors.white,
-                                    size: 24,
-                                  ),
+                                  child: isResolvingAudio
+                                      ? const Padding(
+                                          padding: EdgeInsets.all(12),
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.5,
+                                            color: Colors.white,
+                                          ),
+                                        )                                     
+                                      : Icon(
+                                          isPlaying && _playingPoiId == topPoi?.id
+                                              ? Icons.pause
+                                              : Icons.play_arrow,
+                                          color: Colors.white,
+                                          size: 24,
+                                        ),                       
                                 ),
                               ),
                               const SizedBox(width: 18),
@@ -977,6 +1022,18 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                                 ),
                               );
                             },
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(_formatDuration(_position),
+                                  style: const TextStyle(fontSize: 10, color: Colors.black45)),
+                              Text(_formatDuration(_duration),
+                                  style: const TextStyle(fontSize: 10, color: Colors.black45)),
+                            ],
                           ),
                         ),
                       ],
