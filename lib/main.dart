@@ -1662,11 +1662,81 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           ),
         ],
       ),
-      child: Column(
+            child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Monument icon + name row
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: gold.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.temple_hindu, color: maroon, size: 32),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Now approaching',
+                                style: TextStyle(fontSize: 12, color: Colors.black54),
+                              ),
+                              Text(
+                                poi.name,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: maroon,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (isCurrentPlaying) _VolumeButton(audioPlayer: _audioPlayer),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    if (poi.getScript('en').isNotEmpty)
+                      Text(
+                        poi.getScript('en'),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
+                      )
+                    else
+                      const Text(
+                        'Description not available yet.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                          color: Colors.black45,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
           // Play controls: -5s / play-pause / +5s, positioned left-of-center,
-          // above the monument icon + name row.
+          // below the monument icon + name row.
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Align(
@@ -1758,76 +1828,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     style: const TextStyle(fontSize: 10, color: Colors.black45)),
               ],
             ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Monument icon + name row
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: gold.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.temple_hindu, color: maroon, size: 32),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Now approaching',
-                                style: TextStyle(fontSize: 12, color: Colors.black54),
-                              ),
-                              Text(
-                                poi.name,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: maroon,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (isCurrentPlaying) _VolumeButton(audioPlayer: _audioPlayer),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    if (poi.getScript('en').isNotEmpty)
-                      Text(
-                        poi.getScript('en'),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.black54,
-                        ),
-                      )
-                    else
-                      const Text(
-                        'Description not available yet.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontStyle: FontStyle.italic,
-                          color: Colors.black45,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
           ),
         ],
       ),
