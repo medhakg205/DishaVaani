@@ -307,7 +307,6 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
 }
 
 // ---------- SCREEN 2: Home / Select Site ----------
-// (unchanged)
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -534,8 +533,6 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // ---------- SCREEN 3: Point & Detect ----------
-// (unchanged)
-
 class PointDetectScreen extends StatefulWidget {
   final String monumentId;
 
@@ -563,9 +560,8 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
 
-  // Placeholder wiring point: once the matching engine is connected,
-  // this becomes the real top-ranked / in-range POI list.
-  List<Poi> get _inRangePois => _monumentPois;
+  // POIs currently matching the user's GPS position + heading.
+  List<Poi> _inRangePois = [];
   Poi? get _topPoi => _inRangePois.isNotEmpty ? _inRangePois.first : null;
 
   @override
@@ -606,9 +602,16 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
     try {
       final pois = await _poiService.fetchPoisByMonument(widget.monumentId);
       if (!mounted) return;
+
       setState(() {
         _monumentPois = pois;
       });
+
+      // If GPS is already available when Firebase finishes loading,
+      // run the detection immediately.
+      if (lat != null && long != null) {
+        _updateDetection(lat!, long!, heading);
+      }
     } catch (error) {
       // handle error display later
     }
@@ -618,10 +621,28 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
     await _sensorService.start();
     _sensorSub = _sensorService.readings.listen((reading) {
       if (!mounted) return;
+
       setState(() {
         heading = reading.heading;
         lat = reading.lat;
         long = reading.long;
+
+        if (reading.lat != null && reading.long != null && _monumentPois.isNotEmpty) {
+          final result = runMatchingEngine(
+            reading.lat!,
+            reading.long!,
+            reading.heading,
+            _monumentPois,
+          );
+
+          if (result.singleMatch != null) {
+            _inRangePois = [result.singleMatch!];
+          } else {
+            _inRangePois = result.queue;
+          }
+        } else {
+          _inRangePois = [];
+        }
       });
     });
   }
@@ -657,6 +678,30 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
     } finally {
       if (mounted) setState(() => isResolvingAudio = false);
     }
+  }
+
+  void _updateDetection(double userLat, double userLong, double userHeading) {
+    if (_monumentPois.isEmpty) {
+      if (mounted) {
+        setState(() => _inRangePois = []);
+      }
+      return;
+    }
+
+    final result = runMatchingEngine(
+      userLat,
+      userLong,
+      userHeading,
+      _monumentPois,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _inRangePois = result.singleMatch != null
+          ? [result.singleMatch!]
+          : result.queue;
+    });
   }
 
   Future<void> _togglePlayback(Poi poi) async {
@@ -751,6 +796,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            // ---- Monument name + coordinates ----
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
               child: Column(
@@ -774,6 +820,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
               ),
             ),
 
+            // ---- POI detected status strip ----
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16),
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
@@ -806,7 +853,6 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
             ),
 
                         // ---- Compass ----
-            // ---- Degree readout (above the circle) ----
                         // ---- Degree + direction readout (above the circle) ----
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -1042,6 +1088,8 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                 ],
               ),
             ),
+
+            // ---- Manual list handle ----
             InkWell(
               onTap: () {
                 Navigator.push(
@@ -1296,11 +1344,9 @@ class NowPlayingScreen extends StatefulWidget {
 class _NowPlayingScreenState extends State<NowPlayingScreen> {
   final PoiService _poiService = PoiService();
   final AudioPlayer _audioPlayer = AudioPlayer();
-  final TranslationService _translationService = TranslationService();
 
   bool isPlaying = false;
   bool isLoading = true;
-  bool isResolvingAudio = false; // Step 7: loading state while translating/fetching
   String? errorMessage;
 
   Poi? currentPoi;
@@ -1386,6 +1432,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
   }
 
+  // Demo ranking:
+  // Every POI gets a stable virtual bearing. As the heading slider moves,
+  // the angular distance changes, so the queue visibly re-orders live.
   double _virtualBearing(Poi poi, int index) {
     var hash = 0;
     for (final codeUnit in poi.id.codeUnits) {
@@ -1425,6 +1474,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       queue = candidates;
     });
 
+    // During Auto Play, automatically play the new best POI whenever
+    // the slider rotation causes the first queue item to change.
     if (autoPlayChangedItem &&
         queue.isNotEmpty &&
         queue.first.id != oldFirst) {
@@ -1432,46 +1483,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
   }
 
-  // Step 5: resolve the correct audio URL for the currently selected
-  // language — reuse cached audio if it exists, otherwise call the
-  // translation backend and cache the result locally on this Poi object.
-  Future<String?> _resolveAudioUrl(Poi poi) async {
-    final lang = AppSettings.selectedLanguage;
-
-    final existingUrl = poi.audioUrls[lang];
-    if (existingUrl != null && existingUrl.trim().isNotEmpty) {
-      return existingUrl;
-    }
-
-    final englishScript = poi.getScript('en');
-    if (englishScript.isEmpty) {
-      return null;
-    }
-
-    setState(() => isResolvingAudio = true);
-
-    try {
-      final newUrl = await _translationService.getTranslatedAudioUrl(
-        poiId: poi.id,
-        sourceScript: englishScript,
-        targetLanguage: lang,
-      );
-      // Cache locally too, so switching away and back doesn't re-fetch
-      // within this same session.
-      poi.audioUrls[lang] = newUrl;
-      return newUrl;
-    } catch (e) {
-      debugPrint('Translation call failed: $e');
-      return null;
-    } finally {
-      if (mounted) setState(() => isResolvingAudio = false);
-    }
-  }
-
-  // Step 6: this is the trigger used by both auto-advance and manual play.
   Future<void> _playPoi(Poi poi) async {
-    final audioUrl = await _resolveAudioUrl(poi);
-    if (audioUrl == null || audioUrl.trim().isEmpty) return;
+    final audioUrl = poi.getAudioUrl('en').trim();
+    if (audioUrl.isEmpty) return;
 
     try {
       await _audioPlayer.stop();
@@ -1486,25 +1500,22 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   Future<void> _togglePlayback(Poi poi) async {
-    if (isPlaying) {
-      await _audioPlayer.pause();
-      return;
-    }
+    final audioUrl = poi.getAudioUrl('en').trim();
 
-    // Step 6: manual play button trigger — resolves audio for the
-    // currently selected language before playing.
-    final audioUrl = await _resolveAudioUrl(poi);
-
-    if (audioUrl == null || audioUrl.trim().isEmpty) {
+    if (audioUrl.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No audio available in this language yet.')),
+        const SnackBar(content: Text('No audio URL is available for this POI.')),
       );
       return;
     }
 
     try {
-      await _audioPlayer.play(UrlSource(audioUrl));
+      if (isPlaying) {
+        await _audioPlayer.pause();
+      } else {
+        await _audioPlayer.play(UrlSource(audioUrl));
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
