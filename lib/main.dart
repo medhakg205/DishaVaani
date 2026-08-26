@@ -5,12 +5,10 @@ import 'package:flutter/material.dart';
 import 'firebase_options.dart';
 import 'models/poi.dart';
 import 'services/poi_service.dart';
-import 'services/translation_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'sensor_service.dart';
 import 'dart:async';
 import 'matching_engine.dart';
-import 'app_settings.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -193,28 +191,20 @@ class LanguageSelectScreen extends StatefulWidget {
 }
 
 class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
-  late String selectedLanguageCode;
+  String selectedLanguage = 'English';
 
   final List<Map<String, dynamic>> languages = [
-    {'name': 'English', 'native': 'English', 'code': 'en'},
-    {'name': 'Hindi', 'native': 'हिन्दी', 'code': 'hi'},
-    {'name': 'Tamil', 'native': 'தமிழ்', 'code': 'ta'},
-    {'name': 'Telugu', 'native': 'తెలుగు', 'code': 'te'},
-    {'name': 'Kannada', 'native': 'ಕನ್ನಡ', 'code': 'kn'},
-    {'name': 'Malayalam', 'native': 'മലയാളം', 'code': 'ml'},
-    {'name': 'Marathi', 'native': 'मराठी', 'code': 'mr'},
-    {'name': 'Bengali', 'native': 'বাংলা', 'code': 'bn'},
-    {'name': 'Gujarati', 'native': 'ગુજરાતી', 'code': 'gu'},
-    {'name': 'Punjabi', 'native': 'ਪੰਜਾਬੀ', 'code': 'pa'},
+    {'name': 'English', 'native': 'English', 'enabled': true},
+    {'name': 'Hindi', 'native': 'हिन्दी', 'enabled': false},
+    {'name': 'Tamil', 'native': 'தமிழ்', 'enabled': false},
+    {'name': 'Telugu', 'native': 'తెలుగు', 'enabled': false},
+    {'name': 'Kannada', 'native': 'ಕನ್ನಡ', 'enabled': false},
+    {'name': 'Malayalam', 'native': 'മലയാളം', 'enabled': false},
+    {'name': 'Marathi', 'native': 'मराठी', 'enabled': false},
+    {'name': 'Bengali', 'native': 'বাংলা', 'enabled': false},
+    {'name': 'Gujarati', 'native': 'ગુજરાતી', 'enabled': false},
+    {'name': 'Punjabi', 'native': 'ਪੰਜਾਬੀ', 'enabled': false},
   ];
-
-  @override
-  void initState() {
-    super.initState();
-    // Reflect whatever was already selected before, so reopening this
-    // screen doesn't silently reset the user's choice.
-    selectedLanguageCode = AppSettings.selectedLanguage;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -240,40 +230,55 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final lang = languages[index];
-                  final bool isSelected = selectedLanguageCode == lang['code'];
+                  final bool isEnabled = lang['enabled'] as bool;
+                  final bool isSelected = selectedLanguage == lang['name'];
 
-                  return InkWell(
-                    onTap: () => setState(() => selectedLanguageCode = lang['code']),
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: isSelected ? terracotta : Colors.black12,
-                          width: isSelected ? 2 : 1,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(lang['name'],
-                                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                                Text(lang['native'],
-                                    style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                              ],
-                            ),
+                  return Opacity(
+                    opacity: isEnabled ? 1.0 : 0.5,
+                    child: InkWell(
+                      onTap: isEnabled
+                          ? () => setState(() => selectedLanguage = lang['name'])
+                          : () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('${lang['name']} narration coming soon via Bhashini.'),
+                                ),
+                              );
+                            },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isSelected ? terracotta : Colors.black12,
+                            width: isSelected ? 2 : 1,
                           ),
-                          if (isSelected)
-                            const Padding(
-                              padding: EdgeInsets.only(left: 8),
-                              child: Icon(Icons.check_circle, color: terracotta),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(lang['name'],
+                                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                                  Text(lang['native'],
+                                      style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                                ],
+                              ),
                             ),
-                        ],
+                            if (!isEnabled)
+                              const Text('Coming soon',
+                                  style: TextStyle(fontSize: 11, color: Colors.black38)),
+                            if (isSelected)
+                              const Padding(
+                                padding: EdgeInsets.only(left: 8),
+                                child: Icon(Icons.check_circle, color: terracotta),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   );
@@ -290,12 +295,7 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                onPressed: () {
-                  // Step 4: this is the actual moment the user's choice
-                  // becomes the app-wide selected language.
-                  AppSettings.selectedLanguage = selectedLanguageCode;
-                  Navigator.pop(context);
-                },
+                onPressed: () => Navigator.pop(context),
                 child: const Text('CONFIRM'),
               ),
             ),
@@ -307,7 +307,6 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
 }
 
 // ---------- SCREEN 2: Home / Select Site ----------
-// (unchanged)
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -534,8 +533,6 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // ---------- SCREEN 3: Point & Detect ----------
-// (unchanged)
-
 class PointDetectScreen extends StatefulWidget {
   final String monumentId;
 
@@ -559,9 +556,8 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   bool isPlaying = false;
   String? _playingPoiId;
 
-  // Placeholder wiring point: once the matching engine is connected,
-  // this becomes the real top-ranked / in-range POI list.
-  List<Poi> get _inRangePois => _monumentPois;
+  // POIs currently matching the user's GPS position + heading.
+  List<Poi> _inRangePois = [];
   Poi? get _topPoi => _inRangePois.isNotEmpty ? _inRangePois.first : null;
 
   @override
@@ -585,9 +581,16 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
     try {
       final pois = await _poiService.fetchPoisByMonument(widget.monumentId);
       if (!mounted) return;
+
       setState(() {
         _monumentPois = pois;
       });
+
+      // If GPS is already available when Firebase finishes loading,
+      // run the detection immediately.
+      if (lat != null && long != null) {
+        _updateDetection(lat!, long!, heading);
+      }
     } catch (error) {
       // handle error display later
     }
@@ -597,11 +600,53 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
     await _sensorService.start();
     _sensorSub = _sensorService.readings.listen((reading) {
       if (!mounted) return;
+
       setState(() {
         heading = reading.heading;
         lat = reading.lat;
         long = reading.long;
+
+        if (reading.lat != null && reading.long != null && _monumentPois.isNotEmpty) {
+          final result = runMatchingEngine(
+            reading.lat!,
+            reading.long!,
+            reading.heading,
+            _monumentPois,
+          );
+
+          if (result.singleMatch != null) {
+            _inRangePois = [result.singleMatch!];
+          } else {
+            _inRangePois = result.queue;
+          }
+        } else {
+          _inRangePois = [];
+        }
       });
+    });
+  }
+
+  void _updateDetection(double userLat, double userLong, double userHeading) {
+    if (_monumentPois.isEmpty) {
+      if (mounted) {
+        setState(() => _inRangePois = []);
+      }
+      return;
+    }
+
+    final result = runMatchingEngine(
+      userLat,
+      userLong,
+      userHeading,
+      _monumentPois,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _inRangePois = result.singleMatch != null
+          ? [result.singleMatch!]
+          : result.queue;
     });
   }
 
@@ -678,6 +723,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            // ---- Monument name + coordinates ----
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
               child: Column(
@@ -701,6 +747,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
               ),
             ),
 
+            // ---- POI detected status strip ----
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16),
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
@@ -733,7 +780,6 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
             ),
 
                         // ---- Compass ----
-            // ---- Degree readout (above the circle) ----
                         // ---- Degree + direction readout (above the circle) ----
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -853,6 +899,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
               ),
             ),
 
+            // ---- Manual list handle ----
             InkWell(
               onTap: () {
                 Navigator.push(
@@ -973,11 +1020,9 @@ class NowPlayingScreen extends StatefulWidget {
 class _NowPlayingScreenState extends State<NowPlayingScreen> {
   final PoiService _poiService = PoiService();
   final AudioPlayer _audioPlayer = AudioPlayer();
-  final TranslationService _translationService = TranslationService();
 
   bool isPlaying = false;
   bool isLoading = true;
-  bool isResolvingAudio = false; // Step 7: loading state while translating/fetching
   String? errorMessage;
 
   Poi? currentPoi;
@@ -1063,6 +1108,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
   }
 
+  // Demo ranking:
+  // Every POI gets a stable virtual bearing. As the heading slider moves,
+  // the angular distance changes, so the queue visibly re-orders live.
   double _virtualBearing(Poi poi, int index) {
     var hash = 0;
     for (final codeUnit in poi.id.codeUnits) {
@@ -1102,6 +1150,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       queue = candidates;
     });
 
+    // During Auto Play, automatically play the new best POI whenever
+    // the slider rotation causes the first queue item to change.
     if (autoPlayChangedItem &&
         queue.isNotEmpty &&
         queue.first.id != oldFirst) {
@@ -1109,46 +1159,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
   }
 
-  // Step 5: resolve the correct audio URL for the currently selected
-  // language — reuse cached audio if it exists, otherwise call the
-  // translation backend and cache the result locally on this Poi object.
-  Future<String?> _resolveAudioUrl(Poi poi) async {
-    final lang = AppSettings.selectedLanguage;
-
-    final existingUrl = poi.audioUrls[lang];
-    if (existingUrl != null && existingUrl.trim().isNotEmpty) {
-      return existingUrl;
-    }
-
-    final englishScript = poi.getScript('en');
-    if (englishScript.isEmpty) {
-      return null;
-    }
-
-    setState(() => isResolvingAudio = true);
-
-    try {
-      final newUrl = await _translationService.getTranslatedAudioUrl(
-        poiId: poi.id,
-        sourceScript: englishScript,
-        targetLanguage: lang,
-      );
-      // Cache locally too, so switching away and back doesn't re-fetch
-      // within this same session.
-      poi.audioUrls[lang] = newUrl;
-      return newUrl;
-    } catch (e) {
-      debugPrint('Translation call failed: $e');
-      return null;
-    } finally {
-      if (mounted) setState(() => isResolvingAudio = false);
-    }
-  }
-
-  // Step 6: this is the trigger used by both auto-advance and manual play.
   Future<void> _playPoi(Poi poi) async {
-    final audioUrl = await _resolveAudioUrl(poi);
-    if (audioUrl == null || audioUrl.trim().isEmpty) return;
+    final audioUrl = poi.getAudioUrl('en').trim();
+    if (audioUrl.isEmpty) return;
 
     try {
       await _audioPlayer.stop();
@@ -1163,25 +1176,22 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   Future<void> _togglePlayback(Poi poi) async {
-    if (isPlaying) {
-      await _audioPlayer.pause();
-      return;
-    }
+    final audioUrl = poi.getAudioUrl('en').trim();
 
-    // Step 6: manual play button trigger — resolves audio for the
-    // currently selected language before playing.
-    final audioUrl = await _resolveAudioUrl(poi);
-
-    if (audioUrl == null || audioUrl.trim().isEmpty) {
+    if (audioUrl.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No audio available in this language yet.')),
+        const SnackBar(content: Text('No audio URL is available for this POI.')),
       );
       return;
     }
 
     try {
-      await _audioPlayer.play(UrlSource(audioUrl));
+      if (isPlaying) {
+        await _audioPlayer.pause();
+      } else {
+        await _audioPlayer.play(UrlSource(audioUrl));
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -1498,23 +1508,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               ],
             ),
           ),
-          // Step 7: swap the play/pause icon for a spinner while resolving.
           IconButton(
             iconSize: 40,
-            icon: isResolvingAudio
-                ? const SizedBox(
-                    width: 26,
-                    height: 26,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: terracotta,
-                    ),
-                  )
-                : Icon(
-                    isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
-                    color: terracotta,
-                  ),
-            onPressed: isResolvingAudio ? null : () => _togglePlayback(poi),
+            icon: Icon(
+              isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
+              color: terracotta,
+            ),
+            onPressed: () => _togglePlayback(poi),
           ),
         ],
       ),
@@ -1523,7 +1523,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 }
 
 // ---------- SCREEN 5: Manual POI List ----------
-// (unchanged)
 
 class ManualPoiListScreen extends StatelessWidget {
   final List<Poi> pois;
