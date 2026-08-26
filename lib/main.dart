@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import 'firebase_options.dart';
 import 'models/poi.dart';
 import 'services/poi_service.dart';
+import 'services/translation_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'sensor_service.dart';
 import 'dart:async';
 import 'matching_engine.dart';
+import 'app_settings.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -191,20 +193,28 @@ class LanguageSelectScreen extends StatefulWidget {
 }
 
 class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
-  String selectedLanguage = 'English';
+  late String selectedLanguageCode;
 
   final List<Map<String, dynamic>> languages = [
-    {'name': 'English', 'native': 'English', 'enabled': true},
-    {'name': 'Hindi', 'native': 'हिन्दी', 'enabled': false},
-    {'name': 'Tamil', 'native': 'தமிழ்', 'enabled': false},
-    {'name': 'Telugu', 'native': 'తెలుగు', 'enabled': false},
-    {'name': 'Kannada', 'native': 'ಕನ್ನಡ', 'enabled': false},
-    {'name': 'Malayalam', 'native': 'മലയാളം', 'enabled': false},
-    {'name': 'Marathi', 'native': 'मराठी', 'enabled': false},
-    {'name': 'Bengali', 'native': 'বাংলা', 'enabled': false},
-    {'name': 'Gujarati', 'native': 'ગુજરાતી', 'enabled': false},
-    {'name': 'Punjabi', 'native': 'ਪੰਜਾਬੀ', 'enabled': false},
+    {'name': 'English', 'native': 'English', 'code': 'en'},
+    {'name': 'Hindi', 'native': 'हिन्दी', 'code': 'hi'},
+    {'name': 'Tamil', 'native': 'தமிழ்', 'code': 'ta'},
+    {'name': 'Telugu', 'native': 'తెలుగు', 'code': 'te'},
+    {'name': 'Kannada', 'native': 'ಕನ್ನಡ', 'code': 'kn'},
+    {'name': 'Malayalam', 'native': 'മലയാളം', 'code': 'ml'},
+    {'name': 'Marathi', 'native': 'मराठी', 'code': 'mr'},
+    {'name': 'Bengali', 'native': 'বাংলা', 'code': 'bn'},
+    {'name': 'Gujarati', 'native': 'ગુજરાતી', 'code': 'gu'},
+    {'name': 'Punjabi', 'native': 'ਪੰਜਾਬੀ', 'code': 'pa'},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Reflect whatever was already selected before, so reopening this
+    // screen doesn't silently reset the user's choice.
+    selectedLanguageCode = AppSettings.selectedLanguage;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -230,55 +240,40 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final lang = languages[index];
-                  final bool isEnabled = lang['enabled'] as bool;
-                  final bool isSelected = selectedLanguage == lang['name'];
+                  final bool isSelected = selectedLanguageCode == lang['code'];
 
-                  return Opacity(
-                    opacity: isEnabled ? 1.0 : 0.5,
-                    child: InkWell(
-                      onTap: isEnabled
-                          ? () => setState(() => selectedLanguage = lang['name'])
-                          : () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('${lang['name']} narration coming soon via Bhashini.'),
-                                ),
-                              );
-                            },
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isSelected ? terracotta : Colors.black12,
-                            width: isSelected ? 2 : 1,
-                          ),
+                  return InkWell(
+                    onTap: () => setState(() => selectedLanguageCode = lang['code']),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isSelected ? terracotta : Colors.black12,
+                          width: isSelected ? 2 : 1,
                         ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(lang['name'],
-                                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                                  Text(lang['native'],
-                                      style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                                ],
-                              ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(lang['name'],
+                                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                                Text(lang['native'],
+                                    style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                              ],
                             ),
-                            if (!isEnabled)
-                              const Text('Coming soon',
-                                  style: TextStyle(fontSize: 11, color: Colors.black38)),
-                            if (isSelected)
-                              const Padding(
-                                padding: EdgeInsets.only(left: 8),
-                                child: Icon(Icons.check_circle, color: terracotta),
-                              ),
-                          ],
-                        ),
+                          ),
+                          if (isSelected)
+                            const Padding(
+                              padding: EdgeInsets.only(left: 8),
+                              child: Icon(Icons.check_circle, color: terracotta),
+                            ),
+                        ],
                       ),
                     ),
                   );
@@ -295,7 +290,12 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  // Step 4: this is the actual moment the user's choice
+                  // becomes the app-wide selected language.
+                  AppSettings.selectedLanguage = selectedLanguageCode;
+                  Navigator.pop(context);
+                },
                 child: const Text('CONFIRM'),
               ),
             ),
