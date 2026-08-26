@@ -553,8 +553,12 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   List<Poi> _monumentPois = [];
 
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final TranslationService _translationService = TranslationService();
   bool isPlaying = false;
+  bool isResolvingAudio = false;
   String? _playingPoiId;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
 
   // POIs currently matching the user's GPS position + heading.
   List<Poi> _inRangePois = [];
@@ -562,20 +566,37 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
 
   @override
   void initState() {
-    super.initState();
-    _loadPois();
-    _startSensors();
+  super.initState();
+  _loadPois();
+  _startSensors();
 
-    _audioPlayer.onPlayerStateChanged.listen((state) {
-      if (!mounted) return;
-      setState(() => isPlaying = state == PlayerState.playing);
-    });
+  _audioPlayer.onPlayerStateChanged.listen((state) {
+    if (!mounted) return;
+    setState(() => isPlaying = state == PlayerState.playing);
+  });
 
-    _audioPlayer.onPlayerComplete.listen((_) {
-      if (!mounted) return;
-      setState(() => isPlaying = false);
+  _audioPlayer.onPlayerComplete.listen((_) {
+    if (!mounted) return;
+    setState(() {
+      isPlaying = false;
+      _position = Duration.zero;
     });
-  }
+  });
+
+  _audioPlayer.onPositionChanged.listen((position) {
+    if (!mounted) return;
+    setState(() {
+      _position = position;
+    });
+  });
+
+  _audioPlayer.onDurationChanged.listen((duration) {
+    if (!mounted) return;
+    setState(() {
+      _duration = duration;
+    });
+  });
+}
 
   Future<void> _loadPois() async {
     try {
@@ -625,6 +646,39 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
       });
     });
   }
+    // Resolves audio in the currently selected language — same logic as
+  // NowPlayingScreen, kept in sync so both screens play the same
+  // language for the same POI instead of Screen 3 defaulting to English.
+  Future<String?> _resolveAudioUrl(Poi poi) async {
+    final lang = AppSettings.selectedLanguage;
+
+    final existingUrl = poi.audioUrls[lang];
+    if (existingUrl != null && existingUrl.trim().isNotEmpty) {
+      return existingUrl;
+    }
+
+    final englishScript = poi.getScript('en');
+    if (englishScript.isEmpty) {
+      return null;
+    }
+
+    setState(() => isResolvingAudio = true);
+
+    try {
+      final newUrl = await _translationService.getTranslatedAudioUrl(
+        poiId: poi.id,
+        sourceScript: englishScript,
+        targetLanguage: lang,
+      );
+      poi.audioUrls[lang] = newUrl;
+      return newUrl;
+    } catch (e) {
+      debugPrint('Translation call failed: $e');
+      return null;
+    } finally {
+      if (mounted) setState(() => isResolvingAudio = false);
+    }
+  }
 
   void _updateDetection(double userLat, double userLong, double userHeading) {
     if (_monumentPois.isEmpty) {
@@ -651,23 +705,24 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   }
 
   Future<void> _togglePlayback(Poi poi) async {
-    final audioUrl = poi.getAudioUrl('en').trim();
+    if (isPlaying && _playingPoiId == poi.id) {
+      await _audioPlayer.pause();
+      return;
+    }
 
-    if (audioUrl.isEmpty) {
+    final audioUrl = await _resolveAudioUrl(poi);
+
+    if (audioUrl == null || audioUrl.trim().isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No audio URL is available for this POI.')),
+        const SnackBar(content: Text('No audio available in this language yet.')),
       );
       return;
     }
 
     try {
-      if (isPlaying && _playingPoiId == poi.id) {
-        await _audioPlayer.pause();
-      } else {
-        _playingPoiId = poi.id;
-        await _audioPlayer.play(UrlSource(audioUrl));
-      }
+      _playingPoiId = poi.id;
+      await _audioPlayer.play(UrlSource(audioUrl));
     } catch (error) {
       if (!mounted) return;
       setState(() => isPlaying = false);
@@ -675,6 +730,14 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
         SnackBar(content: Text('Could not play audio: $error')),
       );
     }
+  }
+
+  Future<void> _seekBy(Duration delta) async {
+    final maxMs = _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 0;
+    final newMs = (_position.inMilliseconds + delta.inMilliseconds).clamp(0, maxMs);
+    final newPosition = Duration(milliseconds: newMs);
+    setState(() => _position = newPosition);
+    await _audioPlayer.seek(newPosition);
   }
 
   @override
@@ -692,6 +755,16 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
         .where((word) => word.isNotEmpty)
         .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
         .join(' ');
+  }
+  String _formatDuration(Duration duration) {
+
+    final minutes = duration.inMinutes.remainder(60).toString();
+
+    final seconds = duration.inSeconds
+        .remainder(60)
+        .toString()
+        .padLeft(2, '0');
+    return '$minutes:$seconds';
   }
 
     String _headingLabel(double heading) {
@@ -832,70 +905,187 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
             ),
 
             // ---- Now playing bar ----
-            InkWell(
-              onTap: topPoi == null ? null : () => _togglePlayback(topPoi),
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: terracotta, width: 2),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 6,
-                      offset: Offset(0, 3),
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: terracotta, width: 2),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 6,
+                    offset: Offset(0, 3),
+                  ),
+                ],
+              ),
+                            child: Row(
+                children: [
+                  // Monument icon
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: gold.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: gold.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(Icons.temple_hindu, color: maroon, size: 26),
+                    child: const Icon(
+                      Icons.temple_hindu,
+                      color: maroon,
+                      size: 26,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Now approaching',
-                            style: TextStyle(fontSize: 11, color: Colors.black54),
-                          ),
-                          Text(
-                            topPoi?.name ?? 'Nothing playing yet',
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: maroon,
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  // POI name + controls + slider
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Now approaching',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  Text(
+                                    topPoi?.name ?? 'Nothing playing yet',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: maroon,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
+                            _VolumeButton(audioPlayer: _audioPlayer),
+                          ],
+                        ),
+
+                        const SizedBox(height: 2),
+                        // Play controls: -5s / play-pause / +5s, always visible, centered above the slider
+                        Align(
+                          alignment: Alignment.center,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.replay_5, color: terracotta),
+                                iconSize: 26,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onPressed: () => _seekBy(const Duration(seconds: -5)),
+                              ),
+                              const SizedBox(width: 18),
+                              GestureDetector(
+                                onTap: topPoi == null || isResolvingAudio ? null : () => _togglePlayback(topPoi),
+                                child: Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: const BoxDecoration(
+                                    color: maroon,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: isResolvingAudio
+                                      ? const Padding(
+                                          padding: EdgeInsets.all(12),
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.5,
+                                            color: Colors.white,
+                                          ),
+                                        )                                     
+                                      : Icon(
+                                          isPlaying && _playingPoiId == topPoi?.id
+                                              ? Icons.pause
+                                              : Icons.play_arrow,
+                                          color: Colors.white,
+                                          size: 24,
+                                        ),                       
+                                ),
+                              ),
+                              const SizedBox(width: 18),
+                              IconButton(
+                                icon: const Icon(Icons.forward_5, color: terracotta),
+                                iconSize: 26,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onPressed: () => _seekBy(const Duration(seconds: 5)),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+
+                        const SizedBox(height: 4),
+
+                        SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            trackHeight: 3,
+                            thumbShape: const RoundSliderThumbShape(
+                              enabledThumbRadius: 5,
+                            ),
+                            overlayShape: const RoundSliderOverlayShape(
+                              overlayRadius: 10,
+                            ),
+                            activeTrackColor: terracotta,
+                            inactiveTrackColor: sandstone,
+                            thumbColor: terracotta,
+                          ),
+                          child: Slider(
+                            min: 0,
+                            max: _duration.inMilliseconds > 0
+                                ? _duration.inMilliseconds.toDouble()
+                                : 1,
+                            value: _position.inMilliseconds
+                                .clamp(
+                                  0,
+                                  _duration.inMilliseconds > 0
+                                      ? _duration.inMilliseconds
+                                      : 1,
+                                )
+                                .toDouble(),
+                            onChanged: (value) {
+                              setState(() {
+                                _position = Duration(
+                                  milliseconds: value.toInt(),
+                                );
+                              });
+                            },
+                            onChangeEnd: (value) async {
+                              await _audioPlayer.seek(
+                                Duration(
+                                  milliseconds: value.toInt(),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(_formatDuration(_position),
+                                  style: const TextStyle(fontSize: 10, color: Colors.black45)),
+                              Text(_formatDuration(_duration),
+                                  style: const TextStyle(fontSize: 10, color: Colors.black45)),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    Container(
-                      width: 34,
-                      height: 34,
-                      decoration: const BoxDecoration(color: maroon, shape: BoxShape.circle),
-                      child: Icon(
-                        isPlaying && _playingPoiId == topPoi?.id
-                            ? Icons.pause
-                            : Icons.play_arrow,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
 
@@ -941,6 +1131,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
       ),
     );
   }
+    
 }
 
 class _CompassLabel extends StatelessWidget {
@@ -1001,6 +1192,139 @@ class _NeedlePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+// ---------- Reusable volume popup button ----------
+class _VolumeButton extends StatefulWidget {
+  final AudioPlayer audioPlayer;
+  const _VolumeButton({required this.audioPlayer});
+
+  @override
+  State<_VolumeButton> createState() => _VolumeButtonState();
+}
+
+class _VolumeButtonState extends State<_VolumeButton> {
+  final LayerLink _layerLink = LayerLink();
+  OverlayEntry? _overlayEntry;
+  double _volume = 1.0;
+
+  void _toggleSlider() {
+    if (_overlayEntry != null) {
+      _closeSlider();
+    } else {
+      _openSlider();
+    }
+  }
+
+  void _openSlider() {
+    final overlay = Overlay.of(context);
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Stack(
+        children: [
+          // Tap outside to dismiss
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _closeSlider,
+            ),
+          ),
+          CompositedTransformFollower(
+            link: _layerLink,
+            showWhenUnlinked: false,
+            targetAnchor: Alignment.topRight,
+            followerAnchor: Alignment.bottomRight,
+            offset: const Offset(0, -8),
+            child: Material(
+              elevation: 6,
+              borderRadius: BorderRadius.circular(20),
+              color: Colors.transparent,
+              child: Container(
+                width: 160,
+                height: 44,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: terracotta.withOpacity(0.4)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 8,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: StatefulBuilder(
+                  builder: (context, setPopupState) {
+                    return Row(
+                      children: [
+                        const Icon(Icons.volume_down, size: 14, color: Colors.black45),
+                        Expanded(
+                          child: SliderTheme(
+                            data: SliderTheme.of(context).copyWith(
+                              trackHeight: 3,
+                              thumbShape: const RoundSliderThumbShape(
+                                enabledThumbRadius: 6,
+                              ),
+                              overlayShape: const RoundSliderOverlayShape(
+                                overlayRadius: 12,
+                              ),
+                              activeTrackColor: terracotta,
+                              inactiveTrackColor: sandstone,
+                              thumbColor: terracotta,
+                            ),
+                            child: Slider(
+                              min: 0,
+                              max: 1,
+                              value: _volume,
+                              onChanged: (value) {
+                                setPopupState(() => _volume = value);
+                                setState(() {});
+                                widget.audioPlayer.setVolume(value);
+                              },
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.volume_up, size: 14, color: terracotta),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    overlay.insert(_overlayEntry!);
+    setState(() {});
+  }
+
+  void _closeSlider() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _overlayEntry?.remove();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: IconButton(
+        icon: Icon(
+          _volume == 0 ? Icons.volume_off : Icons.volume_up,
+          color: terracotta,
+        ),
+        onPressed: _toggleSlider,
+        splashRadius: 20,
+      ),
+    );
+  }
 }
 
 // ---------- SCREEN 4: Now Playing / Queue ----------
@@ -1203,7 +1527,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
   }
 
-  Future<void> _selectPoi(Poi poi) async {
+    Future<void> _seekBy(Duration delta) async {
+    final maxMs = _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 0;
+    final newMs = (_position.inMilliseconds + delta.inMilliseconds).clamp(0, maxMs);
+    final newPosition = Duration(milliseconds: newMs);
+    setState(() => _position = newPosition);
+    await _audioPlayer.seek(newPosition);
+  }
+
+    Future<void> _selectPoi(Poi poi) async {
     await _audioPlayer.stop();
     if (!mounted) return;
 
@@ -1215,8 +1547,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     });
 
     _rerankQueue();
-  }
 
+    // Auto-play the newly selected POI instead of waiting for another tap.
+    await _playPoi(poi);
+  }
   String _formatDuration(Duration d) {
     final minutes = d.inMinutes.remainder(60).toString().padLeft(1, '0');
     final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
@@ -1376,10 +1710,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                     ],
                                   ),
                                 ),
-                                Icon(
-                                  index == 0 ? Icons.volume_up : Icons.play_arrow,
-                                  color: terracotta,
-                                ),
+                                index == 0
+                                    ? _VolumeButton(audioPlayer: _audioPlayer)
+                                    : const Icon(Icons.play_arrow, color: terracotta),
                               ],
                             ),
                           ),
@@ -1406,8 +1739,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       ],
     );
   }
+    Widget _nowPlayingCard(Poi poi) {
+    final isCurrentPlaying = isPlaying;
 
-  Widget _nowPlayingCard(Poi poi) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1422,109 +1756,177 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: gold.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.temple_hindu, color: maroon, size: 32),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Now approaching',
-                  style: TextStyle(fontSize: 12, color: Colors.black54),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Monument icon + name row
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: gold.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                Text(
-                  poi.name,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: maroon,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                if (poi.getScript('en').isNotEmpty)
-                  Text(
-                    poi.getScript('en'),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.black54,
-                    ),
-                  )
-                else
-                  const Text(
-                    'Description not available yet.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontStyle: FontStyle.italic,
-                      color: Colors.black45,
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    trackHeight: 4,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-                    activeTrackColor: terracotta,
-                    inactiveTrackColor: sandstone,
-                    thumbColor: terracotta,
-                  ),
-                  child: Slider(
-                    min: 0,
-                    max: _duration.inMilliseconds > 0
-                        ? _duration.inMilliseconds.toDouble()
-                        : 1,
-                    value: _position.inMilliseconds
-                        .clamp(0, _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 1)
-                        .toDouble(),
-                    onChanged: (value) {
-                      setState(() => _position = Duration(milliseconds: value.toInt()));
-                    },
-                    onChangeEnd: (value) async {
-                      await _audioPlayer.seek(Duration(milliseconds: value.toInt()));
-                    },
-                  ),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: const Icon(Icons.temple_hindu, color: maroon, size: 32),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_formatDuration(_position),
-                        style: const TextStyle(fontSize: 10, color: Colors.black45)),
-                    Text(_formatDuration(_duration),
-                        style: const TextStyle(fontSize: 10, color: Colors.black45)),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Now approaching',
+                                style: TextStyle(fontSize: 12, color: Colors.black54),
+                              ),
+                              Text(
+                                poi.name,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: maroon,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        _VolumeButton(audioPlayer: _audioPlayer),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    if (poi.getScript('en').isNotEmpty)
+                      Text(
+                        poi.getScript('en'),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
+                      )
+                    else
+                      const Text(
+                        'Description not available yet.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                          color: Colors.black45,
+                        ),
+                      ),
                   ],
                 ),
-              ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+                    // Play controls: -5s / play-pause / +5s, centered above the slider.
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Align(
+              alignment: Alignment.center,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.replay_5, color: terracotta),
+                    iconSize: 26,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () => _seekBy(const Duration(seconds: -5)),
+                  ),
+                  const SizedBox(width: 20),
+                  GestureDetector(
+                    onTap: isResolvingAudio ? null : () => _togglePlayback(poi),
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: const BoxDecoration(
+                        color: maroon,
+                        shape: BoxShape.circle,
+                      ),
+                      child: isResolvingAudio
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Icon(
+                              isCurrentPlaying ? Icons.pause : Icons.play_arrow,
+                              color: Colors.white,
+                              size: 26,
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  IconButton(
+                    icon: const Icon(Icons.forward_5, color: terracotta),
+                    iconSize: 26,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () => _seekBy(const Duration(seconds: 5)),
+                  ),
+                ],
+              ),
             ),
           ),
-          IconButton(
-            iconSize: 40,
-            icon: Icon(
-              isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
-              color: terracotta,
+
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 4,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+              activeTrackColor: terracotta,
+              inactiveTrackColor: sandstone,
+              thumbColor: terracotta,
             ),
-            onPressed: () => _togglePlayback(poi),
+            child: Slider(
+              min: 0,
+              max: _duration.inMilliseconds > 0
+                  ? _duration.inMilliseconds.toDouble()
+                  : 1,
+              value: _position.inMilliseconds
+                  .clamp(0, _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 1)
+                  .toDouble(),
+              onChanged: (value) {
+                setState(() => _position = Duration(milliseconds: value.toInt()));
+              },
+              onChangeEnd: (value) async {
+                await _audioPlayer.seek(Duration(milliseconds: value.toInt()));
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(_formatDuration(_position),
+                    style: const TextStyle(fontSize: 10, color: Colors.black45)),
+                Text(_formatDuration(_duration),
+                    style: const TextStyle(fontSize: 10, color: Colors.black45)),
+              ],
+            ),
           ),
         ],
       ),
     );
-  }
+  }             
 }
 
-// ---------- SCREEN 5: Manual POI List ----------
-
-class ManualPoiListScreen extends StatelessWidget {
+// SCREEN 5: Manual POI List
+// NAVIGATION / SEARCH BAR LOGIC LIVES IN THIS FILE.
+class ManualPoiListScreen extends StatefulWidget {
   final List<Poi> pois;
   final ValueChanged<Poi> onPoiSelected;
 
@@ -1535,7 +1937,41 @@ class ManualPoiListScreen extends StatelessWidget {
   });
 
   @override
+  State<ManualPoiListScreen> createState() => _ManualPoiListScreenState();
+}
+
+class _ManualPoiListScreenState extends State<ManualPoiListScreen> {
+  // ---- SEARCH BAR STATE ----
+  // Holds whatever the user has typed into the search box so far.
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // ---- SEARCH FILTERING LOGIC ----
+  // Recomputes the visible list every time _searchQuery changes.
+  // Matches against POI name AND description (English script), so
+  // typing "sandstone" finds "West Wall Carving" even though the
+  // word isn't in the title — same idea as Google's live search.
+  List<Poi> get _filteredPois {
+    if (_searchQuery.trim().isEmpty) return widget.pois;
+
+    final query = _searchQuery.trim().toLowerCase();
+    return widget.pois.where((poi) {
+      final nameMatch = poi.name.toLowerCase().contains(query);
+      final descriptionMatch = poi.getScript('en').toLowerCase().contains(query);
+      return nameMatch || descriptionMatch;
+    }).toList();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final filteredPois = _filteredPois;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: maroon,
@@ -1546,6 +1982,7 @@ class ManualPoiListScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            // ---- SEARCH BAR (dynamic / live filtering) ----
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
@@ -1553,18 +1990,36 @@ class ManualPoiListScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.black12),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.search,
                     color: Colors.black45,
                   ),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
+                      controller: _searchController,
+                      // Fires on every keystroke — this is what makes
+                      // the list update live instead of needing the
+                      // full word typed out.
+                      onChanged: (value) {
+                        setState(() => _searchQuery = value);
+                      },
                       decoration: InputDecoration(
                         hintText: 'Search POIs',
                         border: InputBorder.none,
+                        // Clear ("x") button, only shown once the user
+                        // has typed something — standard Google-style UX.
+                        suffixIcon: _searchQuery.isEmpty
+                            ? null
+                            : IconButton(
+                                icon: const Icon(Icons.clear, color: Colors.black45, size: 18),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                              ),
                       ),
                     ),
                   ),
@@ -1572,20 +2027,26 @@ class ManualPoiListScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
+            // ---- RESULTS LIST (reflects _filteredPois, not widget.pois) ----
             Expanded(
-              child: pois.isEmpty
-                  ? const Center(
-                      child: Text('No POIs available.'),
+              child: filteredPois.isEmpty
+                  ? Center(
+                      child: Text(
+                        _searchQuery.isEmpty
+                            ? 'No POIs available.'
+                            : 'No POIs match "$_searchQuery".',
+                        textAlign: TextAlign.center,
+                      ),
                     )
                   : ListView.separated(
-                      itemCount: pois.length,
+                      itemCount: filteredPois.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {
-                        final poi = pois[index];
+                        final poi = filteredPois[index];
 
                         return InkWell(
                           onTap: () {
-                            onPoiSelected(poi);
+                            widget.onPoiSelected(poi);
                             Navigator.pop(context);
                           },
                           borderRadius: BorderRadius.circular(10),
