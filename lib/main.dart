@@ -1832,10 +1832,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }             
 }
 
-// ---------- SCREEN 5: Manual POI List ----------
-// (unchanged)
-
-class ManualPoiListScreen extends StatelessWidget {
+// SCREEN 5: Manual POI List
+// NAVIGATION / SEARCH BAR LOGIC LIVES IN THIS FILE.
+class ManualPoiListScreen extends StatefulWidget {
   final List<Poi> pois;
   final ValueChanged<Poi> onPoiSelected;
 
@@ -1846,7 +1845,41 @@ class ManualPoiListScreen extends StatelessWidget {
   });
 
   @override
+  State<ManualPoiListScreen> createState() => _ManualPoiListScreenState();
+}
+
+class _ManualPoiListScreenState extends State<ManualPoiListScreen> {
+  // ---- SEARCH BAR STATE ----
+  // Holds whatever the user has typed into the search box so far.
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // ---- SEARCH FILTERING LOGIC ----
+  // Recomputes the visible list every time _searchQuery changes.
+  // Matches against POI name AND description (English script), so
+  // typing "sandstone" finds "West Wall Carving" even though the
+  // word isn't in the title — same idea as Google's live search.
+  List<Poi> get _filteredPois {
+    if (_searchQuery.trim().isEmpty) return widget.pois;
+
+    final query = _searchQuery.trim().toLowerCase();
+    return widget.pois.where((poi) {
+      final nameMatch = poi.name.toLowerCase().contains(query);
+      final descriptionMatch = poi.getScript('en').toLowerCase().contains(query);
+      return nameMatch || descriptionMatch;
+    }).toList();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final filteredPois = _filteredPois;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: maroon,
@@ -1857,6 +1890,7 @@ class ManualPoiListScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            // ---- SEARCH BAR (dynamic / live filtering) ----
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
@@ -1864,18 +1898,36 @@ class ManualPoiListScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.black12),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.search,
                     color: Colors.black45,
                   ),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
+                      controller: _searchController,
+                      // Fires on every keystroke — this is what makes
+                      // the list update live instead of needing the
+                      // full word typed out.
+                      onChanged: (value) {
+                        setState(() => _searchQuery = value);
+                      },
                       decoration: InputDecoration(
                         hintText: 'Search POIs',
                         border: InputBorder.none,
+                        // Clear ("x") button, only shown once the user
+                        // has typed something — standard Google-style UX.
+                        suffixIcon: _searchQuery.isEmpty
+                            ? null
+                            : IconButton(
+                                icon: const Icon(Icons.clear, color: Colors.black45, size: 18),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                              ),
                       ),
                     ),
                   ),
@@ -1883,20 +1935,26 @@ class ManualPoiListScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
+            // ---- RESULTS LIST (reflects _filteredPois, not widget.pois) ----
             Expanded(
-              child: pois.isEmpty
-                  ? const Center(
-                      child: Text('No POIs available.'),
+              child: filteredPois.isEmpty
+                  ? Center(
+                      child: Text(
+                        _searchQuery.isEmpty
+                            ? 'No POIs available.'
+                            : 'No POIs match "$_searchQuery".',
+                        textAlign: TextAlign.center,
+                      ),
                     )
                   : ListView.separated(
-                      itemCount: pois.length,
+                      itemCount: filteredPois.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {
-                        final poi = pois[index];
+                        final poi = filteredPois[index];
 
                         return InkWell(
                           onTap: () {
-                            onPoiSelected(poi);
+                            widget.onPoiSelected(poi);
                             Navigator.pop(context);
                           },
                           borderRadius: BorderRadius.circular(10),
