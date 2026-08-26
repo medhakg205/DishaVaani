@@ -649,6 +649,17 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
         .join(' ');
   }
 
+    String _headingLabel(double heading) {
+    const directions = [
+      'N', 'NNE', 'NE', 'ENE',
+      'E', 'ESE', 'SE', 'SSE',
+      'S', 'SSW', 'SW', 'WSW',
+      'W', 'WNW', 'NW', 'NNW',
+    ];
+    final index = ((heading % 360) / 22.5).round() % 16;
+    return directions[index];
+  }
+
   @override
   Widget build(BuildContext context) {
     final topPoi = _topPoi;
@@ -721,10 +732,13 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
               ),
             ),
 
+                        // ---- Compass ----
+            // ---- Degree readout (above the circle) ----
+                        // ---- Degree + direction readout (above the circle) ----
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
-                '${heading.toInt()}°',
+                '${heading.toInt()}° ${_headingLabel(heading)}',
                 style: const TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
@@ -733,30 +747,40 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
               ),
             ),
 
+            // ---- Compass (Apple-style: dial rotates, pointer fixed to top) ----
             Expanded(
               child: Center(
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    const Positioned(top: 0, child: _CompassLabel('N')),
-                    const Positioned(bottom: 0, child: _CompassLabel('S')),
-                    const Positioned(left: 0, child: _CompassLabel('W')),
-                    const Positioned(right: 0, child: _CompassLabel('E')),
-                    Container(
-                      width: 160,
-                      height: 160,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: terracotta, width: 3),
-                      ),
-                      child: Center(
-                        child: Transform.rotate(
-                          angle: radians,
-                          child: const _CompassNeedle(size: 90),
+                child: SizedBox(
+                  width: 220,
+                  height: 220,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // The dial: ring + N/E/S/W labels, all rotating together.
+                      Transform.rotate(
+                        angle: -radians,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Container(
+                              width: 200,
+                              height: 200,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: terracotta, width: 3),
+                              ),
+                            ),
+                            const Positioned(top: 6, child: _CompassLabel('N')),
+                            const Positioned(bottom: 6, child: _CompassLabel('S')),
+                            const Positioned(left: 6, child: _CompassLabel('W')),
+                            const Positioned(right: 6, child: _CompassLabel('E')),
+                          ],
                         ),
                       ),
-                    ),
-                  ],
+                      // The pointer: fixed, always points to the top of the phone.
+                      const _CompassNeedle(size: 90),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -882,7 +906,7 @@ class _CompassLabel extends StatelessWidget {
       padding: const EdgeInsets.all(4),
       child: Text(
         label,
-        style: const TextStyle(fontSize: 11, color: Colors.black45, fontWeight: FontWeight.w600),
+        style: const TextStyle(fontSize: 15, color: Colors.black45, fontWeight: FontWeight.w600),
       ),
     );
   }
