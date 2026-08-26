@@ -862,51 +862,53 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                                 ],
                               ),
                             ),
-                            if (topPoi != null && isPlaying && _playingPoiId == topPoi.id)
-                              _VolumeButton(audioPlayer: _audioPlayer),
+                            _VolumeButton(audioPlayer: _audioPlayer),
                           ],
                         ),
 
                         const SizedBox(height: 2),
                         // Play controls: -5s / play-pause / +5s, always visible, centered above the slider
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.replay_5, color: terracotta),
-                              iconSize: 20,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              onPressed: () => _seekBy(const Duration(seconds: -5)),
-                            ),
-                            const SizedBox(width: 14),
-                            GestureDetector(
-                              onTap: topPoi == null ? null : () => _togglePlayback(topPoi),
-                              child: Container(
-                                width: 34,
-                                height: 34,
-                                decoration: const BoxDecoration(
-                                  color: maroon,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  isPlaying && _playingPoiId == topPoi?.id
-                                      ? Icons.pause
-                                      : Icons.play_arrow,
-                                  color: Colors.white,
-                                  size: 18,
+                        Align(
+                          alignment: Alignment.center,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.replay_5, color: terracotta),
+                                iconSize: 26,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onPressed: () => _seekBy(const Duration(seconds: -5)),
+                              ),
+                              const SizedBox(width: 18),
+                              GestureDetector(
+                                onTap: topPoi == null ? null : () => _togglePlayback(topPoi),
+                                child: Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: const BoxDecoration(
+                                    color: maroon,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    isPlaying && _playingPoiId == topPoi?.id
+                                        ? Icons.pause
+                                        : Icons.play_arrow,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 14),
-                            IconButton(
-                              icon: const Icon(Icons.forward_5, color: terracotta),
-                              iconSize: 20,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              onPressed: () => _seekBy(const Duration(seconds: 5)),
-                            ),
-                          ],
+                              const SizedBox(width: 18),
+                              IconButton(
+                                icon: const Icon(Icons.forward_5, color: terracotta),
+                                iconSize: 26,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onPressed: () => _seekBy(const Duration(seconds: 5)),
+                              ),
+                            ],
+                          ),
                         ),
 
                         const SizedBox(height: 4),
@@ -1099,9 +1101,9 @@ class _VolumeButtonState extends State<_VolumeButton> {
           CompositedTransformFollower(
             link: _layerLink,
             showWhenUnlinked: false,
-            targetAnchor: Alignment.bottomRight,
-            followerAnchor: Alignment.topRight,
-            offset: const Offset(0, 8),
+            targetAnchor: Alignment.topRight,
+            followerAnchor: Alignment.bottomRight,
+            offset: const Offset(0, -8),
             child: Material(
               elevation: 6,
               borderRadius: BorderRadius.circular(20),
@@ -1704,7 +1706,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             ],
                           ),
                         ),
-                        if (isCurrentPlaying) _VolumeButton(audioPlayer: _audioPlayer),
+                        _VolumeButton(audioPlayer: _audioPlayer),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -1734,60 +1736,55 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           ),
 
           const SizedBox(height: 12),
-
-          // Play controls: -5s / play-pause / +5s, positioned left-of-center,
-          // below the monument icon + name row.
+                    // Play controls: -5s / play-pause / +5s, centered above the slider.
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 40),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.replay_5, color: terracotta),
-                      iconSize: 22,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: () => _seekBy(const Duration(seconds: -5)),
-                    ),
-                    const SizedBox(width: 18),
-                    GestureDetector(
-                      onTap: isResolvingAudio ? null : () => _togglePlayback(poi),
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: const BoxDecoration(
-                          color: maroon,
-                          shape: BoxShape.circle,
-                        ),
-                        child: isResolvingAudio
-                            ? const Padding(
-                                padding: EdgeInsets.all(10),
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Icon(
-                                isCurrentPlaying ? Icons.pause : Icons.play_arrow,
-                                color: Colors.white,
-                                size: 22,
-                              ),
+              alignment: Alignment.center,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.replay_5, color: terracotta),
+                    iconSize: 26,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () => _seekBy(const Duration(seconds: -5)),
+                  ),
+                  const SizedBox(width: 20),
+                  GestureDetector(
+                    onTap: isResolvingAudio ? null : () => _togglePlayback(poi),
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: const BoxDecoration(
+                        color: maroon,
+                        shape: BoxShape.circle,
                       ),
+                      child: isResolvingAudio
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Icon(
+                              isCurrentPlaying ? Icons.pause : Icons.play_arrow,
+                              color: Colors.white,
+                              size: 26,
+                            ),
                     ),
-                    const SizedBox(width: 18),
-                    IconButton(
-                      icon: const Icon(Icons.forward_5, color: terracotta),
-                      iconSize: 22,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: () => _seekBy(const Duration(seconds: 5)),
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 20),
+                  IconButton(
+                    icon: const Icon(Icons.forward_5, color: terracotta),
+                    iconSize: 26,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () => _seekBy(const Duration(seconds: 5)),
+                  ),
+                ],
               ),
             ),
           ),
