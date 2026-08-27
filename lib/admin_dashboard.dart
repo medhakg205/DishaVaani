@@ -1,16 +1,175 @@
 import 'dart:convert';
 
 import 'package:csv/csv.dart';
-import 'package:excel/excel.dart';
+import 'package:excel/excel.dart' hide Border;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'models/poi.dart';
 import 'services/poi_service.dart';
 
-const _maroon = Color(0xFF6B2737);
-const _terracotta = Color(0xFFC1652F);
-const _sandstone = Color(0xFFF5EFE6);
+const _maroon = Color(0xFF6B2638);
+const _terracotta = Color(0xFFC86B32);
+const _sandstone = Color(0xFFF9EEE6);
+const _indiaGreen = Color(0xFF2E7D5B);
+const _portalBackground = Color(0xFFF7F0E7);
+
+class _GovtPortalHeader extends StatelessWidget {
+  final String? monumentId;
+  final bool isSaving;
+  final VoidCallback onImport;
+  final VoidCallback? onBack;
+  final VoidCallback? onNewPoi;
+
+  const _GovtPortalHeader({
+    required this.monumentId,
+    required this.isSaving,
+    required this.onImport,
+    this.onBack,
+    this.onNewPoi,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      child: Column(
+        children: [
+          Container(
+            height: 5,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [_terracotta, Colors.white, _indiaGreen],
+              ),
+            ),
+          ),
+          Container(
+            color: _maroon,
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 9),
+            child: Row(
+              children: [
+                const Icon(Icons.flag, color: Colors.white, size: 17),
+                const SizedBox(width: 8),
+                const Text(
+                  'Government of India',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                const Text(
+                  'Skip to main content',
+                  style: TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(width: 18),
+                const Text(
+                  'A−   A   A+',
+                  style: TextStyle(color: Colors.white),
+                ),
+                const SizedBox(width: 18),
+                const Icon(Icons.language, color: Colors.white, size: 18),
+                const SizedBox(width: 6),
+                const Text('English', style: TextStyle(color: Colors.white)),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
+            child: Row(
+              children: [
+                const Icon(Icons.account_balance, size: 48, color: _maroon),
+                const SizedBox(width: 16),
+                Container(width: 1, height: 50, color: Colors.black26),
+                const SizedBox(width: 16),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Ministry of Tourism',
+                        style: TextStyle(fontSize: 13, color: Colors.black54),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'DishaVaani Administration Portal',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                          color: _maroon,
+                        ),
+                      ),
+                      Text(
+                        'Digital heritage interpretation management system',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.verified_user, color: _indiaGreen, size: 34),
+              ],
+            ),
+          ),
+          Container(
+            decoration: const BoxDecoration(
+              border: Border(
+                top: BorderSide(color: Color(0xFFE3E7E5)),
+                bottom: BorderSide(color: Color(0xFFE3E7E5)),
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+            child: Row(
+              children: [
+                if (onBack != null)
+                  TextButton.icon(
+                    onPressed: onBack,
+                    icon: const Icon(Icons.arrow_back),
+                    label: const Text('All monuments'),
+                  )
+                else
+                  const Text(
+                    'Dashboard',
+                    style: TextStyle(
+                      color: _indiaGreen,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                const SizedBox(width: 26),
+                const Text(
+                  'Monuments',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(width: 26),
+                Text(
+                  monumentId == null ? 'Administration' : 'POIs · $monumentId',
+                  style: const TextStyle(color: Colors.black54),
+                ),
+                const Spacer(),
+                OutlinedButton.icon(
+                  onPressed: isSaving ? null : onImport,
+                  icon: const Icon(Icons.upload_file),
+                  label: const Text('Import data'),
+                ),
+                if (onNewPoi != null) ...[
+                  const SizedBox(width: 10),
+                  FilledButton.icon(
+                    onPressed: onNewPoi,
+                    style: FilledButton.styleFrom(backgroundColor: _indiaGreen),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add POI'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _ImportHelp extends StatelessWidget {
   const _ImportHelp();
@@ -336,78 +495,57 @@ class _AdminDashboardState extends State<AdminDashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: _maroon,
-        foregroundColor: Colors.white,
-        leading: _selectedMonumentId == null
-            ? null
-            : IconButton(
-                onPressed: _backToMonuments,
-                icon: const Icon(Icons.arrow_back),
-                tooltip: 'All monuments',
-              ),
-        title: Text(
-          _selectedMonumentId == null
-              ? 'DishaVaani Admin'
-              : '$_selectedMonumentId · POIs',
-        ),
-        actions: [
-          TextButton.icon(
-            onPressed: _saving ? null : _importDataset,
-            icon: const Icon(Icons.upload_file, color: Colors.white),
-            label: const Text(
-              'Import CSV / Excel',
-              style: TextStyle(color: Colors.white),
+      backgroundColor: _portalBackground,
+      body: Column(
+        children: [
+          _GovtPortalHeader(
+            monumentId: _selectedMonumentId,
+            isSaving: _saving,
+            onImport: _importDataset,
+            onBack: _selectedMonumentId == null ? null : _backToMonuments,
+            onNewPoi: _selectedMonumentId == null ? null : _clear,
+          ),
+          Expanded(
+            child: StreamBuilder<List<Poi>>(
+              stream: _service.watchPois(),
+              builder: (context, snapshot) {
+                final list = snapshot.data ?? [];
+                if (_selectedMonumentId == null) {
+                  return _buildMonuments(snapshot, list);
+                }
+                final monumentPois = list
+                    .where((poi) => poi.monumentId == _selectedMonumentId)
+                    .toList();
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    final form = _buildForm();
+                    final records = _buildRecords(snapshot, monumentPois);
+                    if (constraints.maxWidth < 900) {
+                      return ListView(
+                        padding: const EdgeInsets.all(24),
+                        children: [form, const SizedBox(height: 28), records],
+                      );
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.all(28),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 5,
+                            child: SingleChildScrollView(child: form),
+                          ),
+                          const SizedBox(width: 28),
+                          Expanded(flex: 4, child: records),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
             ),
           ),
-          if (_selectedMonumentId != null)
-            TextButton.icon(
-              onPressed: _clear,
-              icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text(
-                'New POI',
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
         ],
-      ),
-      body: StreamBuilder<List<Poi>>(
-        stream: _service.watchPois(),
-        builder: (context, snapshot) {
-          final list = snapshot.data ?? [];
-          if (_selectedMonumentId == null) {
-            return _buildMonuments(snapshot, list);
-          }
-          final monumentPois = list
-              .where((poi) => poi.monumentId == _selectedMonumentId)
-              .toList();
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final form = _buildForm();
-              final records = _buildRecords(snapshot, monumentPois);
-              if (constraints.maxWidth < 900) {
-                return ListView(
-                  padding: const EdgeInsets.all(24),
-                  children: [form, const SizedBox(height: 28), records],
-                );
-              }
-              return Padding(
-                padding: const EdgeInsets.all(28),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 5,
-                      child: SingleChildScrollView(child: form),
-                    ),
-                    const SizedBox(width: 28),
-                    Expanded(flex: 4, child: records),
-                  ],
-                ),
-              );
-            },
-          );
-        },
       ),
     );
   }
