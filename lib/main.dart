@@ -563,6 +563,14 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   // POIs currently matching the user's GPS position + heading.
   List<Poi> _inRangePois = [];
   Poi? get _topPoi => _inRangePois.isNotEmpty ? _inRangePois.first : null;
+  String? _candidatePoiId;
+  Timer? _stabilityTimer;
+  Poi? _pendingSwitchPoi;
+  Timer? _switchTimer;
+  String? _skippedPoiId;
+
+  static const _stabilityDelay = Duration(seconds: 2);
+  static const _switchDelay = Duration(seconds: 5);
 
   @override
   void initState() {
@@ -580,6 +588,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
     setState(() {
       isPlaying = false;
       _position = Duration.zero;
+      _skippedPoiId = null;
     });
   });
 
@@ -644,6 +653,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
           _inRangePois = [];
         }
       });
+      _onTopPoiUpdated();
     });
   }
     // Resolves audio in the currently selected language — same logic as
@@ -696,12 +706,74 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
     );
 
     if (!mounted) return;
-
     setState(() {
       _inRangePois = result.singleMatch != null
           ? [result.singleMatch!]
           : result.queue;
     });
+
+    _onTopPoiUpdated();
+  }
+
+  void _onTopPoiUpdated() {
+    final topPoi = _topPoi;
+
+    if (topPoi == null) {
+      _candidatePoiId = null;
+      _stabilityTimer?.cancel();
+      _cancelPendingSwitch();
+      return;
+    }
+
+    if (_playingPoiId == topPoi.id && isPlaying) {
+      _candidatePoiId = null;
+      _stabilityTimer?.cancel();
+      _cancelPendingSwitch();
+      return;
+    }
+
+    if (_skippedPoiId == topPoi.id) return;
+
+    if (_candidatePoiId != topPoi.id) {
+      _candidatePoiId = topPoi.id;
+      _stabilityTimer?.cancel();
+      _stabilityTimer = Timer(_stabilityDelay, () {
+        if (!mounted) return;
+        if (_topPoi?.id == topPoi.id) _decideAction(topPoi);
+      });
+    }
+  }
+
+  void _decideAction(Poi topPoi) {
+    if (_playingPoiId == null || !isPlaying) {
+      _togglePlayback(topPoi);
+    } else if (_playingPoiId != topPoi.id) {
+      _startPendingSwitch(topPoi);
+    }
+  }
+
+  void _startPendingSwitch(Poi newPoi) {
+    if (_pendingSwitchPoi?.id == newPoi.id) return;
+
+    setState(() => _pendingSwitchPoi = newPoi);
+    _switchTimer?.cancel();
+    _switchTimer = Timer(_switchDelay, () {
+      if (!mounted) return;
+      final target = _pendingSwitchPoi;
+      setState(() => _pendingSwitchPoi = null);
+      if (target != null) _togglePlayback(target);
+    });
+  }
+
+  void _keepCurrentAudio() {
+    _skippedPoiId = _pendingSwitchPoi?.id;
+    _switchTimer?.cancel();
+    setState(() => _pendingSwitchPoi = null);
+  }
+
+  void _cancelPendingSwitch() {
+    _switchTimer?.cancel();
+    if (_pendingSwitchPoi != null) setState(() => _pendingSwitchPoi = null);
   }
 
   Future<void> _togglePlayback(Poi poi) async {
@@ -745,6 +817,8 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
     _sensorSub?.cancel();
     _sensorService.dispose();
     _audioPlayer.dispose();
+    _stabilityTimer?.cancel();
+    _switchTimer?.cancel();
     super.dispose();
   }
 
@@ -903,7 +977,32 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                 ),
               ),
             ),
-
+                        // ---- Pending switch banner ----
+            if (_pendingSwitchPoi != null)
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: gold.withOpacity(0.25),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.notifications_active, size: 16, color: maroon),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Now near ${_pendingSwitchPoi!.name} — switching soon',
+                        style: const TextStyle(fontSize: 12, color: maroon),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _keepCurrentAudio,
+                      child: const Text('KEEP LISTENING', style: TextStyle(fontSize: 11)),
+                    ),
+                  ],
+                ),
+              ),
             // ---- Now playing bar ----
             Container(
               margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -920,7 +1019,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                   ),
                 ],
               ),
-                            child: Row(
+              child: Row(
                 children: [
                   // Monument icon
                   Container(
@@ -1088,15 +1187,23 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                 ],
               ),
             ),
-
             // ---- Manual list handle ----
             InkWell(
-              onTap: () {
+              onTap: () async {
+                // Pause this screen's audio before handing off to Screen 4 —
+                // otherwise both AudioPlayer instances could play at once.
+                if (isPlaying) {
+                  await _audioPlayer.pause();
+                }
+
+                if (!context.mounted) return;
+
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (_) => NowPlayingScreen(
                       monumentId: widget.monumentId,
+                      initialPois: _inRangePois.isNotEmpty ? _inRangePois : null,
                     ),
                   ),
                 );
@@ -1331,10 +1438,12 @@ class _VolumeButtonState extends State<_VolumeButton> {
 
 class NowPlayingScreen extends StatefulWidget {
   final String monumentId;
+  final List<Poi>? initialPois;
 
   const NowPlayingScreen({
     super.key,
     this.monumentId = 'qutub_minar',
+    this.initialPois,
   });
 
   @override
@@ -1347,6 +1456,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   bool isPlaying = false;
   bool isLoading = true;
+  bool isResolvingAudio = false;
   String? errorMessage;
 
   Poi? currentPoi;
@@ -1394,8 +1504,30 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     _audioPlayer.dispose();
     super.dispose();
   }
-
   Future<void> _loadPois() async {
+    // If a real ranked queue was passed in from detection, use it directly —
+    // skip the fetch and the fake demo ranking entirely.
+    if (widget.initialPois != null) {
+      _allPois = List<Poi>.from(widget.initialPois!);
+
+      if (_allPois.isEmpty) {
+        setState(() {
+          currentPoi = null;
+          queue = [];
+          isLoading = false;
+        });
+        return;
+      }
+
+      setState(() {
+        currentPoi = _allPois.first;
+        queue = _allPois.skip(1).toList();
+        isLoading = false;
+      });
+      return;
+    }
+
+    // Fallback: no real data available, fetch + fake-rank as before.
     setState(() {
       isLoading = true;
       errorMessage = null;
@@ -1430,7 +1562,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         isLoading = false;
       });
     }
-  }
+  } 
 
   // Demo ranking:
   // Every POI gets a stable virtual bearing. As the heading slider moves,
@@ -1453,7 +1585,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     if (_allPois.isEmpty) return;
 
     final selectedId = currentPoi?.id;
-
+    if (widget.initialPois != null) {
+      setState(() {
+        queue = _allPois.where((poi) => poi.id != selectedId).toList();
+      });
+      return;
+    }
     final candidates = _allPois.where((poi) => poi.id != selectedId).toList();
 
     candidates.sort((a, b) {
@@ -1514,6 +1651,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       if (isPlaying) {
         await _audioPlayer.pause();
       } else {
+        setState(() => isResolvingAudio = true);
         await _audioPlayer.play(UrlSource(audioUrl));
       }
     } catch (error) {
@@ -1525,6 +1663,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         SnackBar(content: Text('Could not play audio: $error')),
       );
     }
+    finally {
+    if (mounted) setState(() => isResolvingAudio = false);}
   }
 
     Future<void> _seekBy(Duration delta) async {
@@ -1828,7 +1968,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           ),
 
           const SizedBox(height: 12),
-                    // Play controls: -5s / play-pause / +5s, centered above the slider.
+          // Play controls: -5s / play-pause / +5s, centered above the slider.
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Align(
