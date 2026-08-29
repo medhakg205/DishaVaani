@@ -1,16 +1,16 @@
+import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
+import 'app_settings.dart';
 import 'firebase_options.dart';
+import 'matching_engine.dart';
 import 'models/poi.dart';
+import 'sensor_service.dart';
 import 'services/poi_service.dart';
 import 'services/translation_service.dart';
-import 'package:geolocator/geolocator.dart';
-import 'sensor_service.dart';
-import 'dart:async';
-import 'matching_engine.dart';
-import 'app_settings.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -154,7 +154,6 @@ class _SplashScreenState extends State<SplashScreen> {
                       : const Text('ALLOW LOCATION + COMPASS'),
                 ),
               ),
-
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -170,7 +169,8 @@ class _SplashScreenState extends State<SplashScreen> {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const LanguageSelectScreen()),
+                      MaterialPageRoute(
+                          builder: (_) => const LanguageSelectScreen()),
                     );
                   },
                   child: const Text('CHOOSE LANGUAGE'),
@@ -195,24 +195,22 @@ class LanguageSelectScreen extends StatefulWidget {
 class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
   late String selectedLanguageCode;
 
-  final List<Map<String, dynamic>> languages = [
-    {'name': 'English', 'native': 'English', 'code': 'en'},
-    {'name': 'Hindi', 'native': 'हिन्दी', 'code': 'hi'},
-    {'name': 'Tamil', 'native': 'தமிழ்', 'code': 'ta'},
-    {'name': 'Telugu', 'native': 'తెలుగు', 'code': 'te'},
-    {'name': 'Kannada', 'native': 'ಕನ್ನಡ', 'code': 'kn'},
-    {'name': 'Malayalam', 'native': 'മലയാളം', 'code': 'ml'},
-    {'name': 'Marathi', 'native': 'मराठी', 'code': 'mr'},
-    {'name': 'Bengali', 'native': 'বাংলা', 'code': 'bn'},
-    {'name': 'Gujarati', 'native': 'ગુજરાતી', 'code': 'gu'},
-    {'name': 'Punjabi', 'native': 'ਪੰਜਾਬੀ', 'code': 'pa'},
+  final List<Map<String, String>> languages = const [
+    {'code': 'en', 'name': 'English', 'native': 'English'},
+    {'code': 'hi', 'name': 'Hindi', 'native': 'हिन्दी'},
+    {'code': 'ta', 'name': 'Tamil', 'native': 'தமிழ்'},
+    {'code': 'te', 'name': 'Telugu', 'native': 'తెలుగు'},
+    {'code': 'kn', 'name': 'Kannada', 'native': 'ಕನ್ನಡ'},
+    {'code': 'ml', 'name': 'Malayalam', 'native': 'മലയാളം'},
+    {'code': 'mr', 'name': 'Marathi', 'native': 'मराठी'},
+    {'code': 'bn', 'name': 'Bengali', 'native': 'বাংলা'},
+    {'code': 'gu', 'name': 'Gujarati', 'native': 'ગુજરાતી'},
+    {'code': 'pa', 'name': 'Punjabi', 'native': 'ਪੰਜਾਬੀ'},
   ];
 
   @override
   void initState() {
     super.initState();
-    // Reflect whatever was already selected before, so reopening this
-    // screen doesn't silently reset the user's choice.
     selectedLanguageCode = AppSettings.selectedLanguage;
   }
 
@@ -243,7 +241,7 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                   final bool isSelected = selectedLanguageCode == lang['code'];
 
                   return InkWell(
-                    onTap: () => setState(() => selectedLanguageCode = lang['code']),
+                    onTap: () => setState(() => selectedLanguageCode = lang['code']!),
                     borderRadius: BorderRadius.circular(10),
                     child: Container(
                       padding: const EdgeInsets.all(14),
@@ -261,9 +259,9 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(lang['name'],
+                                Text(lang['name']!,
                                     style: const TextStyle(fontWeight: FontWeight.w600)),
-                                Text(lang['native'],
+                                Text(lang['native']!,
                                     style: const TextStyle(fontSize: 12, color: Colors.black54)),
                               ],
                             ),
@@ -291,8 +289,6 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: () {
-                  // Step 4: this is the actual moment the user's choice
-                  // becomes the app-wide selected language.
                   AppSettings.selectedLanguage = selectedLanguageCode;
                   Navigator.pop(context);
                 },
@@ -533,6 +529,7 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // ---------- SCREEN 3: Point & Detect ----------
+
 class PointDetectScreen extends StatefulWidget {
   final String monumentId;
 
@@ -546,6 +543,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   double heading = 0;
   double? lat;
   double? long;
+  String? _autoPlayedPoiId;
 
   final SensorService _sensorService = SensorService();
   StreamSubscription<SensorReading>? _sensorSub;
@@ -560,7 +558,6 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
 
-  // POIs currently matching the user's GPS position + heading.
   List<Poi> _inRangePois = [];
   Poi? get _topPoi => _inRangePois.isNotEmpty ? _inRangePois.first : null;
   String? _candidatePoiId;
@@ -583,29 +580,28 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
     setState(() => isPlaying = state == PlayerState.playing);
   });
 
-  _audioPlayer.onPlayerComplete.listen((_) {
-    if (!mounted) return;
-    setState(() {
-      isPlaying = false;
-      _position = Duration.zero;
-      _skippedPoiId = null;
+    _audioPlayer.onPlayerComplete.listen((_) {
+      if (!mounted) return;
+      setState(() {
+        isPlaying = false;
+        _position = Duration.zero;
+      });
     });
-  });
 
-  _audioPlayer.onPositionChanged.listen((position) {
-    if (!mounted) return;
-    setState(() {
-      _position = position;
+    _audioPlayer.onPositionChanged.listen((position) {
+      if (!mounted) return;
+      setState(() {
+        _position = position;
+      });
     });
-  });
 
-  _audioPlayer.onDurationChanged.listen((duration) {
-    if (!mounted) return;
-    setState(() {
-      _duration = duration;
+    _audioPlayer.onDurationChanged.listen((duration) {
+      if (!mounted) return;
+      setState(() {
+        _duration = duration;
+      });
     });
-  });
-}
+  }
 
   Future<void> _loadPois() async {
     try {
@@ -616,49 +612,54 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
         _monumentPois = pois;
       });
 
-      // If GPS is already available when Firebase finishes loading,
-      // run the detection immediately.
       if (lat != null && long != null) {
         _updateDetection(lat!, long!, heading);
       }
     } catch (error) {
-      // handle error display later
+      // debug handle error
     }
   }
 
   Future<void> _startSensors() async {
-    await _sensorService.start();
-    _sensorSub = _sensorService.readings.listen((reading) {
-      if (!mounted) return;
+  await _sensorService.start();
+  _sensorSub = _sensorService.readings.listen((reading) async {
+    if (!mounted) return;
+
+    Poi? detectedPoi;
+
+    if (_monumentPois.isNotEmpty) {
+      final result = runMatchingEngine(
+        reading.lat,
+        reading.long,
+        reading.heading,
+        _monumentPois,
+      );
+
+      detectedPoi = result.singleMatch ?? (result.queue.isNotEmpty ? result.queue.first : null);
 
       setState(() {
         heading = reading.heading;
         lat = reading.lat;
         long = reading.long;
-
-        if (reading.lat != null && reading.long != null && _monumentPois.isNotEmpty) {
-          final result = runMatchingEngine(
-            reading.lat!,
-            reading.long!,
-            reading.heading,
-            _monumentPois,
-          );
-
-          if (result.singleMatch != null) {
-            _inRangePois = [result.singleMatch!];
-          } else {
-            _inRangePois = result.queue;
-          }
-        } else {
-          _inRangePois = [];
-        }
+        _inRangePois = detectedPoi != null ? [detectedPoi] : [];
       });
-      _onTopPoiUpdated();
-    });
-  }
-    // Resolves audio in the currently selected language — same logic as
-  // NowPlayingScreen, kept in sync so both screens play the same
-  // language for the same POI instead of Screen 3 defaulting to English.
+    } else {
+      setState(() {
+        heading = reading.heading;
+        lat = reading.lat;
+        long = reading.long;
+        _inRangePois = [];
+      });
+    }
+
+    // Auto-play when pointing at a new POI
+    if (detectedPoi != null && detectedPoi.id != _autoPlayedPoiId) {
+      _autoPlayedPoiId = detectedPoi.id;
+      await _togglePlayback(detectedPoi);
+    }
+  });
+}
+
   Future<String?> _resolveAudioUrl(Poi poi) async {
     final lang = AppSettings.selectedLanguage;
 
@@ -765,11 +766,6 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
     });
   }
 
-  void _keepCurrentAudio() {
-    _skippedPoiId = _pendingSwitchPoi?.id;
-    _switchTimer?.cancel();
-    setState(() => _pendingSwitchPoi = null);
-  }
 
   void _cancelPendingSwitch() {
     _switchTimer?.cancel();
@@ -782,13 +778,12 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
       return;
     }
 
-    final audioUrl = await _resolveAudioUrl(poi);
-
-    if (audioUrl == null || audioUrl.trim().isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No audio available in this language yet.')),
-      );
+   final audioUrl = await _resolveAudioUrl(poi);
+if (audioUrl == null || audioUrl.trim().isEmpty) {
+  if (!mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('No audio available in this language yet.')),
+  );
       return;
     }
 
@@ -830,18 +825,14 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
         .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
         .join(' ');
   }
+
   String _formatDuration(Duration duration) {
-
     final minutes = duration.inMinutes.remainder(60).toString();
-
-    final seconds = duration.inSeconds
-        .remainder(60)
-        .toString()
-        .padLeft(2, '0');
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
   }
 
-    String _headingLabel(double heading) {
+  String _headingLabel(double heading) {
     const directions = [
       'N', 'NNE', 'NE', 'ENE',
       'E', 'ESE', 'SE', 'SSE',
@@ -870,7 +861,6 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // ---- Monument name + coordinates ----
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
               child: Column(
@@ -889,12 +879,10 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                         ? '${lat!.toStringAsFixed(4)}° N, ${long!.toStringAsFixed(4)}° E'
                         : 'Waiting for GPS...',
                     style: const TextStyle(fontSize: 12, color: Colors.black54),
-                  ),  
+                  ),
                 ],
               ),
             ),
-
-            // ---- POI detected status strip ----
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16),
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
@@ -925,9 +913,6 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                 ],
               ),
             ),
-
-                        // ---- Compass ----
-                        // ---- Degree + direction readout (above the circle) ----
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
@@ -939,8 +924,6 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                 ),
               ),
             ),
-
-            // ---- Compass (Apple-style: dial rotates, pointer fixed to top) ----
             Expanded(
               child: Center(
                 child: SizedBox(
@@ -949,7 +932,6 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      // The dial: ring + N/E/S/W labels, all rotating together.
                       Transform.rotate(
                         angle: -radians,
                         child: Stack(
@@ -970,40 +952,12 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                           ],
                         ),
                       ),
-                      // The pointer: fixed, always points to the top of the phone.
                       const _CompassNeedle(size: 90),
                     ],
                   ),
                 ),
               ),
             ),
-                        // ---- Pending switch banner ----
-            if (_pendingSwitchPoi != null)
-              Container(
-                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: gold.withOpacity(0.25),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.notifications_active, size: 16, color: maroon),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Now near ${_pendingSwitchPoi!.name} — switching soon',
-                        style: const TextStyle(fontSize: 12, color: maroon),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: _keepCurrentAudio,
-                      child: const Text('KEEP LISTENING', style: TextStyle(fontSize: 11)),
-                    ),
-                  ],
-                ),
-              ),
-            // ---- Now playing bar ----
             Container(
               margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               padding: const EdgeInsets.all(14),
@@ -1021,7 +975,6 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
               ),
               child: Row(
                 children: [
-                  // Monument icon
                   Container(
                     width: 52,
                     height: 52,
@@ -1035,10 +988,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                       size: 26,
                     ),
                   ),
-
                   const SizedBox(width: 12),
-
-                  // POI name + controls + slider
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1071,9 +1021,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                             _VolumeButton(audioPlayer: _audioPlayer),
                           ],
                         ),
-
                         const SizedBox(height: 2),
-                        // Play controls: -5s / play-pause / +5s, always visible, centered above the slider
                         Align(
                           alignment: Alignment.center,
                           child: Row(
@@ -1103,14 +1051,14 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                                             strokeWidth: 2.5,
                                             color: Colors.white,
                                           ),
-                                        )                                     
+                                        )
                                       : Icon(
                                           isPlaying && _playingPoiId == topPoi?.id
                                               ? Icons.pause
                                               : Icons.play_arrow,
                                           color: Colors.white,
                                           size: 24,
-                                        ),                       
+                                        ),
                                 ),
                               ),
                               const SizedBox(width: 18),
@@ -1124,9 +1072,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                             ],
                           ),
                         ),
-
                         const SizedBox(height: 4),
-
                         SliderTheme(
                           data: SliderTheme.of(context).copyWith(
                             trackHeight: 3,
@@ -1187,7 +1133,6 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                 ],
               ),
             ),
-            // ---- Manual list handle ----
             InkWell(
               onTap: () async {
                 // Pause this screen's audio before handing off to Screen 4 —
@@ -1300,7 +1245,9 @@ class _NeedlePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
+
 // ---------- Reusable volume popup button ----------
+
 class _VolumeButton extends StatefulWidget {
   final AudioPlayer audioPlayer;
   const _VolumeButton({required this.audioPlayer});
@@ -1327,7 +1274,6 @@ class _VolumeButtonState extends State<_VolumeButton> {
     _overlayEntry = OverlayEntry(
       builder: (context) => Stack(
         children: [
-          // Tap outside to dismiss
           Positioned.fill(
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
@@ -1466,7 +1412,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
 
-  double get heading => 214.0; //why is this here? someone please fix this
+  double get heading => 214.0;
 
   @override
   void initState() {
@@ -1564,9 +1510,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
   } 
 
-  // Demo ranking:
-  // Every POI gets a stable virtual bearing. As the heading slider moves,
-  // the angular distance changes, so the queue visibly re-orders live.
   double _virtualBearing(Poi poi, int index) {
     var hash = 0;
     for (final codeUnit in poi.id.codeUnits) {
@@ -1585,12 +1528,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     if (_allPois.isEmpty) return;
 
     final selectedId = currentPoi?.id;
-    if (widget.initialPois != null) {
-      setState(() {
-        queue = _allPois.where((poi) => poi.id != selectedId).toList();
-      });
-      return;
-    }
     final candidates = _allPois.where((poi) => poi.id != selectedId).toList();
 
     candidates.sort((a, b) {
@@ -1611,8 +1548,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       queue = candidates;
     });
 
-    // During Auto Play, automatically play the new best POI whenever
-    // the slider rotation causes the first queue item to change.
     if (autoPlayChangedItem &&
         queue.isNotEmpty &&
         queue.first.id != oldFirst) {
@@ -1621,7 +1556,21 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   Future<void> _playPoi(Poi poi) async {
-    final audioUrl = poi.getAudioUrl('en').trim();
+    String audioUrl = poi.getAudioUrl(AppSettings.selectedLanguage).trim();
+
+    if (AppSettings.selectedLanguage != 'en' && !poi.audioUrls.containsKey(AppSettings.selectedLanguage)) {
+      try {
+        audioUrl = await TranslationService().getTranslatedAudioUrl(
+          poiId: poi.id,
+          sourceScript: poi.getScript('en'),
+          targetLanguage: AppSettings.selectedLanguage,
+        );
+        poi.audioUrls[AppSettings.selectedLanguage] = audioUrl;
+      } catch (e) {
+        debugPrint('Translation failed: $e');
+      }
+    }
+
     if (audioUrl.isEmpty) return;
 
     try {
@@ -1631,13 +1580,27 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         _duration = Duration.zero;
       });
       await _audioPlayer.play(UrlSource(audioUrl));
-    } catch (_) {
-      // Demo autoplay should not crash the UI if a POI has a bad URL.
-    }
+    } catch (_) {}
   }
 
   Future<void> _togglePlayback(Poi poi) async {
-    final audioUrl = poi.getAudioUrl('en').trim();
+    String audioUrl = poi.getAudioUrl(AppSettings.selectedLanguage).trim();
+
+    if (AppSettings.selectedLanguage != 'en' && !poi.audioUrls.containsKey(AppSettings.selectedLanguage)) {
+      setState(() => isResolvingAudio = true);
+      try {
+        audioUrl = await TranslationService().getTranslatedAudioUrl(
+          poiId: poi.id,
+          sourceScript: poi.getScript('en'),
+          targetLanguage: AppSettings.selectedLanguage,
+        );
+        poi.audioUrls[AppSettings.selectedLanguage] = audioUrl;
+      } catch (e) {
+        debugPrint('Translation failed: $e');
+      } finally {
+        if (mounted) setState(() => isResolvingAudio = false);
+      }
+    }
 
     if (audioUrl.isEmpty) {
       if (!mounted) return;
@@ -1663,11 +1626,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         SnackBar(content: Text('Could not play audio: $error')),
       );
     }
-    finally {
-    if (mounted) setState(() => isResolvingAudio = false);}
   }
 
-    Future<void> _seekBy(Duration delta) async {
+  Future<void> _seekBy(Duration delta) async {
     final maxMs = _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 0;
     final newMs = (_position.inMilliseconds + delta.inMilliseconds).clamp(0, maxMs);
     final newPosition = Duration(milliseconds: newMs);
@@ -1687,10 +1648,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     });
 
     _rerankQueue();
-
-    // Auto-play the newly selected POI instead of waiting for another tap.
     await _playPoi(poi);
   }
+
   String _formatDuration(Duration d) {
     final minutes = d.inMinutes.remainder(60).toString().padLeft(1, '0');
     final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
@@ -1837,9 +1797,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                           color: Colors.black54,
                                         ),
                                       ),
-                                      if (queuedPoi.getScript('en').isNotEmpty)
+                                      if (queuedPoi.getScript(AppSettings.selectedLanguage).isNotEmpty)
                                         Text(
-                                          queuedPoi.getScript('en'),
+                                          queuedPoi.getScript(AppSettings.selectedLanguage),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
@@ -1879,8 +1839,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       ],
     );
   }
-    Widget _nowPlayingCard(Poi poi) {
+
+  Widget _nowPlayingCard(Poi poi) {
     final isCurrentPlaying = isPlaying;
+    final script = poi.getScript(AppSettings.selectedLanguage).isNotEmpty
+        ? poi.getScript(AppSettings.selectedLanguage)
+        : poi.getScript('en');
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1896,10 +1860,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           ),
         ],
       ),
-            child: Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Monument icon + name row
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1910,65 +1873,42 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   color: gold.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.temple_hindu, color: maroon, size: 32),
+                child: const Icon(
+                  Icons.temple_hindu,
+                  color: maroon,
+                  size: 32,
+                ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Now approaching',
-                                style: TextStyle(fontSize: 12, color: Colors.black54),
-                              ),
-                              Text(
-                                poi.name,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: maroon,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        _VolumeButton(audioPlayer: _audioPlayer),
-                      ],
+                    Text(
+                      poi.name,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: maroon,
+                      ),
                     ),
                     const SizedBox(height: 4),
-                    if (poi.getScript('en').isNotEmpty)
-                      Text(
-                        poi.getScript('en'),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.black54,
-                        ),
-                      )
-                    else
-                      const Text(
-                        'Description not available yet.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontStyle: FontStyle.italic,
-                          color: Colors.black45,
-                        ),
+                    Text(
+                      script.isNotEmpty ? script : 'Description not available yet.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: script.isNotEmpty ? Colors.black54 : Colors.black45,
+                        fontStyle: script.isNotEmpty ? FontStyle.normal : FontStyle.italic,
                       ),
+                    ),
                   ],
                 ),
               ),
             ],
           ),
-
           const SizedBox(height: 12),
-          // Play controls: -5s / play-pause / +5s, centered above the slider.
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Align(
@@ -2020,7 +1960,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               ),
             ),
           ),
-
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
               trackHeight: 4,
@@ -2064,8 +2003,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }             
 }
 
-// SCREEN 5: Manual POI List
-// NAVIGATION / SEARCH BAR LOGIC LIVES IN THIS FILE.
+// ---------- SCREEN 5: Manual POI List ----------
+
 class ManualPoiListScreen extends StatefulWidget {
   final List<Poi> pois;
   final ValueChanged<Poi> onPoiSelected;
@@ -2081,8 +2020,6 @@ class ManualPoiListScreen extends StatefulWidget {
 }
 
 class _ManualPoiListScreenState extends State<ManualPoiListScreen> {
-  // ---- SEARCH BAR STATE ----
-  // Holds whatever the user has typed into the search box so far.
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -2092,11 +2029,6 @@ class _ManualPoiListScreenState extends State<ManualPoiListScreen> {
     super.dispose();
   }
 
-  // ---- SEARCH FILTERING LOGIC ----
-  // Recomputes the visible list every time _searchQuery changes.
-  // Matches against POI name AND description (English script), so
-  // typing "sandstone" finds "West Wall Carving" even though the
-  // word isn't in the title — same idea as Google's live search.
   List<Poi> get _filteredPois {
     if (_searchQuery.trim().isEmpty) return widget.pois;
 
@@ -2140,17 +2072,12 @@ class _ManualPoiListScreenState extends State<ManualPoiListScreen> {
                   Expanded(
                     child: TextField(
                       controller: _searchController,
-                      // Fires on every keystroke — this is what makes
-                      // the list update live instead of needing the
-                      // full word typed out.
                       onChanged: (value) {
                         setState(() => _searchQuery = value);
                       },
                       decoration: InputDecoration(
                         hintText: 'Search POIs',
                         border: InputBorder.none,
-                        // Clear ("x") button, only shown once the user
-                        // has typed something — standard Google-style UX.
                         suffixIcon: _searchQuery.isEmpty
                             ? null
                             : IconButton(
@@ -2224,9 +2151,9 @@ class _ManualPoiListScreenState extends State<ManualPoiListScreen> {
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
-                                      if (poi.getScript('en').isNotEmpty)
+                                      if (poi.getScript(AppSettings.selectedLanguage).isNotEmpty)
                                         Text(
-                                          poi.getScript('en'),
+                                          poi.getScript(AppSettings.selectedLanguage),
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(

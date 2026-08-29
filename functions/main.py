@@ -10,9 +10,9 @@ from gtts import gTTS
 
 firebase_admin.initialize_app(options={'projectId': 'dishavaani-db373'})
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_URL =  os.environ.get("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
-BUCKET_NAME = "Audio"  # change if your Supabase bucket has a different name
+BUCKET_NAME = "audio"  # change if your Supabase bucket has a different name
 
 
 @https_fn.on_request()
