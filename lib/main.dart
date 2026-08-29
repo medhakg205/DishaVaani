@@ -1,15 +1,15 @@
+import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-
-import 'firebase_options.dart';
-import 'models/poi.dart';
-import 'services/poi_service.dart';
 import 'package:geolocator/geolocator.dart';
-import 'sensor_service.dart';
-import 'dart:async';
-import 'matching_engine.dart';
+
 import 'app_settings.dart';
+import 'firebase_options.dart';
+import 'matching_engine.dart';
+import 'models/poi.dart';
+import 'sensor_service.dart';
+import 'services/poi_service.dart';
 import 'services/translation_service.dart';
 
 Future<void> main() async {
@@ -154,7 +154,6 @@ class _SplashScreenState extends State<SplashScreen> {
                       : const Text('ALLOW LOCATION + COMPASS'),
                 ),
               ),
-
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -170,7 +169,8 @@ class _SplashScreenState extends State<SplashScreen> {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const LanguageSelectScreen()),
+                      MaterialPageRoute(
+                          builder: (_) => const LanguageSelectScreen()),
                     );
                   },
                   child: const Text('CHOOSE LANGUAGE'),
@@ -193,29 +193,26 @@ class LanguageSelectScreen extends StatefulWidget {
 }
 
 class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
-  late String selectedLanguage;
+  late String selectedLanguageCode;
+
+  final List<Map<String, String>> languages = const [
+    {'code': 'en', 'name': 'English', 'native': 'English'},
+    {'code': 'hi', 'name': 'Hindi', 'native': 'हिन्दी'},
+    {'code': 'ta', 'name': 'Tamil', 'native': 'தமிழ்'},
+    {'code': 'te', 'name': 'Telugu', 'native': 'తెలుగు'},
+    {'code': 'kn', 'name': 'Kannada', 'native': 'ಕನ್ನಡ'},
+    {'code': 'ml', 'name': 'Malayalam', 'native': 'മലയാളം'},
+    {'code': 'mr', 'name': 'Marathi', 'native': 'मराठी'},
+    {'code': 'bn', 'name': 'Bengali', 'native': 'বাংলা'},
+    {'code': 'gu', 'name': 'Gujarati', 'native': 'ગુજરાતી'},
+    {'code': 'pa', 'name': 'Punjabi', 'native': 'ਪੰਜਾਬੀ'},
+  ];
 
   @override
   void initState() {
     super.initState();
-    final entry = languageCodes.entries
-        .where((e) => e.value == AppSettings.selectedLanguage)
-        .firstOrNull;
-    selectedLanguage = entry?.key ?? 'English';
+    selectedLanguageCode = AppSettings.selectedLanguage;
   }
-
-  final List<Map<String, dynamic>> languages = [
-    {'name': 'English', 'native': 'English', 'enabled': true},
-    {'name': 'Hindi', 'native': 'हिन्दी', 'enabled': true},
-    {'name': 'Tamil', 'native': 'தமிழ்', 'enabled': true},
-    {'name': 'Telugu', 'native': 'తెలుగు', 'enabled': true},
-    {'name': 'Kannada', 'native': 'ಕನ್ನಡ', 'enabled': true},
-    {'name': 'Malayalam', 'native': 'മലയാളം', 'enabled': true},
-    {'name': 'Marathi', 'native': 'मराठी', 'enabled': true},
-    {'name': 'Bengali', 'native': 'বাংলা', 'enabled': true},
-    {'name': 'Gujarati', 'native': 'ગુજરાતી', 'enabled': true},
-    {'name': 'Punjabi', 'native': 'ਪੰਜਾਬੀ', 'enabled': true},
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -241,55 +238,40 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final lang = languages[index];
-                  final bool isEnabled = lang['enabled'] as bool;
-                  final bool isSelected = selectedLanguage == lang['name'];
+                  final bool isSelected = selectedLanguageCode == lang['code'];
 
-                  return Opacity(
-                    opacity: isEnabled ? 1.0 : 0.5,
-                    child: InkWell(
-                      onTap: isEnabled
-                          ? () => setState(() => selectedLanguage = lang['name'])
-                          : () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('${lang['name']} narration coming soon via Bhashini.'),
-                                ),
-                              );
-                            },
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isSelected ? terracotta : Colors.black12,
-                            width: isSelected ? 2 : 1,
-                          ),
+                  return InkWell(
+                    onTap: () => setState(() => selectedLanguageCode = lang['code']!),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isSelected ? terracotta : Colors.black12,
+                          width: isSelected ? 2 : 1,
                         ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(lang['name'],
-                                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                                  Text(lang['native'],
-                                      style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                                ],
-                              ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(lang['name']!,
+                                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                                Text(lang['native']!,
+                                    style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                              ],
                             ),
-                            if (!isEnabled)
-                              const Text('Coming soon',
-                                  style: TextStyle(fontSize: 11, color: Colors.black38)),
-                            if (isSelected)
-                              const Padding(
-                                padding: EdgeInsets.only(left: 8),
-                                child: Icon(Icons.check_circle, color: terracotta),
-                              ),
-                          ],
-                        ),
+                          ),
+                          if (isSelected)
+                            const Padding(
+                              padding: EdgeInsets.only(left: 8),
+                              child: Icon(Icons.check_circle, color: terracotta),
+                            ),
+                        ],
                       ),
                     ),
                   );
@@ -307,7 +289,7 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: () {
-                  AppSettings.selectedLanguage = languageCodes[selectedLanguage] ?? 'en';
+                  AppSettings.selectedLanguage = selectedLanguageCode;
                   Navigator.pop(context);
                 },
                 child: const Text('CONFIRM'),
@@ -547,6 +529,7 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // ---------- SCREEN 3: Point & Detect ----------
+
 class PointDetectScreen extends StatefulWidget {
   final String monumentId;
 
@@ -560,6 +543,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   double heading = 0;
   double? lat;
   double? long;
+  String? _autoPlayedPoiId;
 
   final SensorService _sensorService = SensorService();
   StreamSubscription<SensorReading>? _sensorSub;
@@ -567,10 +551,13 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   List<Poi> _monumentPois = [];
 
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final TranslationService _translationService = TranslationService();
   bool isPlaying = false;
+  bool isResolvingAudio = false;
   String? _playingPoiId;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
 
-  // POIs currently matching the user's GPS position + heading.
   List<Poi> _inRangePois = [];
   Poi? get _topPoi => _inRangePois.isNotEmpty ? _inRangePois.first : null;
 
@@ -587,7 +574,24 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
 
     _audioPlayer.onPlayerComplete.listen((_) {
       if (!mounted) return;
-      setState(() => isPlaying = false);
+      setState(() {
+        isPlaying = false;
+        _position = Duration.zero;
+      });
+    });
+
+    _audioPlayer.onPositionChanged.listen((position) {
+      if (!mounted) return;
+      setState(() {
+        _position = position;
+      });
+    });
+
+    _audioPlayer.onDurationChanged.listen((duration) {
+      if (!mounted) return;
+      setState(() {
+        _duration = duration;
+      });
     });
   }
 
@@ -600,44 +604,83 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
         _monumentPois = pois;
       });
 
-      // If GPS is already available when Firebase finishes loading,
-      // run the detection immediately.
       if (lat != null && long != null) {
         _updateDetection(lat!, long!, heading);
       }
     } catch (error) {
-      // handle error display later
+      // debug handle error
     }
   }
 
   Future<void> _startSensors() async {
-    await _sensorService.start();
-    _sensorSub = _sensorService.readings.listen((reading) {
-      if (!mounted) return;
+  await _sensorService.start();
+  _sensorSub = _sensorService.readings.listen((reading) async {
+    if (!mounted) return;
+
+    Poi? detectedPoi;
+
+    if (_monumentPois.isNotEmpty) {
+      final result = runMatchingEngine(
+        reading.lat,
+        reading.long,
+        reading.heading,
+        _monumentPois,
+      );
+
+      detectedPoi = result.singleMatch ?? (result.queue.isNotEmpty ? result.queue.first : null);
 
       setState(() {
         heading = reading.heading;
         lat = reading.lat;
         long = reading.long;
-
-        if (_monumentPois.isNotEmpty) {
-          final result = runMatchingEngine(
-            reading.lat,
-            reading.long,
-            reading.heading,
-            _monumentPois,
-          );
-
-          if (result.singleMatch != null) {
-            _inRangePois = [result.singleMatch!];
-          } else {
-            _inRangePois = result.queue;
-          }
-        } else {
-          _inRangePois = [];
-        }
+        _inRangePois = detectedPoi != null ? [detectedPoi] : [];
       });
-    });
+    } else {
+      setState(() {
+        heading = reading.heading;
+        lat = reading.lat;
+        long = reading.long;
+        _inRangePois = [];
+      });
+    }
+
+    // Auto-play when pointing at a new POI
+    if (detectedPoi != null && detectedPoi.id != _autoPlayedPoiId) {
+      _autoPlayedPoiId = detectedPoi.id;
+      await _togglePlayback(detectedPoi);
+    }
+  });
+}
+
+  Future<String?> _resolveAudioUrl(Poi poi) async {
+    final lang = AppSettings.selectedLanguage;
+
+    final existingUrl = poi.audioUrls[lang];
+    if (existingUrl != null && existingUrl.trim().isNotEmpty) {
+      return existingUrl;
+    }
+
+    final englishScript = poi.getScript('en');
+    if (englishScript.isEmpty) {
+      return null;
+    }
+
+    setState(() => isResolvingAudio = true);
+
+    try {
+      final newUrl = await _translationService.getTranslatedAudioUrl(
+        poiId: poi.id,
+        sourceScript: englishScript,
+        targetLanguage: lang,
+      );
+      poi.audioUrls[lang] = newUrl;
+      return newUrl;
+    } catch (e) {
+      debugPrint('Translation call failed: $e');
+      return null;
+    } finally {
+      if (mounted) setState(() => isResolvingAudio = false);
+    }
   }
 
   void _updateDetection(double userLat, double userLong, double userHeading) {
@@ -665,36 +708,23 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   }
 
   Future<void> _togglePlayback(Poi poi) async {
-    String audioUrl = poi.getAudioUrl(AppSettings.selectedLanguage).trim();
-
-    if (AppSettings.selectedLanguage != 'en' && !poi.audioUrls.containsKey(AppSettings.selectedLanguage)) {
-      try {
-        audioUrl = await TranslationService().getTranslatedAudioUrl(
-          poiId: poi.id,
-          sourceScript: poi.getScript('en'),
-          targetLanguage: AppSettings.selectedLanguage,
-        );
-        poi.audioUrls[AppSettings.selectedLanguage] = audioUrl;
-      } catch (e) {
-        print('Translation failed: $e');
-      }
+    if (isPlaying && _playingPoiId == poi.id) {
+      await _audioPlayer.pause();
+      return;
     }
 
-    if (audioUrl.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No audio URL is available for this POI.')),
-      );
+   final audioUrl = await _resolveAudioUrl(poi);
+if (audioUrl == null || audioUrl.trim().isEmpty) {
+  if (!mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('No audio available in this language yet.')),
+  );
       return;
     }
 
     try {
-      if (isPlaying && _playingPoiId == poi.id) {
-        await _audioPlayer.pause();
-      } else {
-        _playingPoiId = poi.id;
-        await _audioPlayer.play(UrlSource(audioUrl));
-      }
+      _playingPoiId = poi.id;
+      await _audioPlayer.play(UrlSource(audioUrl));
     } catch (error) {
       if (!mounted) return;
       setState(() => isPlaying = false);
@@ -702,6 +732,14 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
         SnackBar(content: Text('Could not play audio: $error')),
       );
     }
+  }
+
+  Future<void> _seekBy(Duration delta) async {
+    final maxMs = _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 0;
+    final newMs = (_position.inMilliseconds + delta.inMilliseconds).clamp(0, maxMs);
+    final newPosition = Duration(milliseconds: newMs);
+    setState(() => _position = newPosition);
+    await _audioPlayer.seek(newPosition);
   }
 
   @override
@@ -719,6 +757,23 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
         .where((word) => word.isNotEmpty)
         .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
         .join(' ');
+  }
+
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes.remainder(60).toString();
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  String _headingLabel(double heading) {
+    const directions = [
+      'N', 'NNE', 'NE', 'ENE',
+      'E', 'ESE', 'SE', 'SSE',
+      'S', 'SSW', 'SW', 'WSW',
+      'W', 'WNW', 'NW', 'NNW',
+    ];
+    final index = ((heading % 360) / 22.5).round() % 16;
+    return directions[index];
   }
 
   @override
@@ -739,7 +794,6 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // ---- Monument name + coordinates ----
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
               child: Column(
@@ -758,12 +812,10 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                         ? '${lat!.toStringAsFixed(4)}° N, ${long!.toStringAsFixed(4)}° E'
                         : 'Waiting for GPS...',
                     style: const TextStyle(fontSize: 12, color: Colors.black54),
-                  ),  
+                  ),
                 ],
               ),
             ),
-
-            // ---- POI detected status strip ----
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16),
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
@@ -794,13 +846,10 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                 ],
               ),
             ),
-
-            // ---- Compass ----
-            // ---- Degree readout (above the circle) ----
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
-                '${heading.toInt()}°',
+                '${heading.toInt()}° ${_headingLabel(heading)}',
                 style: const TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
@@ -808,105 +857,215 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
                 ),
               ),
             ),
-
-            // ---- Compass ----
             Expanded(
               child: Center(
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    const Positioned(top: 0, child: _CompassLabel('N')),
-                    const Positioned(bottom: 0, child: _CompassLabel('S')),
-                    const Positioned(left: 0, child: _CompassLabel('W')),
-                    const Positioned(right: 0, child: _CompassLabel('E')),
-                    Container(
-                      width: 160,
-                      height: 160,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: terracotta, width: 3),
-                      ),
-                      child: Center(
-                        child: Transform.rotate(
-                          angle: radians,
-                          child: const _CompassNeedle(size: 90),
+                child: SizedBox(
+                  width: 220,
+                  height: 220,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Transform.rotate(
+                        angle: -radians,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Container(
+                              width: 200,
+                              height: 200,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: terracotta, width: 3),
+                              ),
+                            ),
+                            const Positioned(top: 6, child: _CompassLabel('N')),
+                            const Positioned(bottom: 6, child: _CompassLabel('S')),
+                            const Positioned(left: 6, child: _CompassLabel('W')),
+                            const Positioned(right: 6, child: _CompassLabel('E')),
+                          ],
                         ),
                       ),
-                    ),
-                  ],
+                      const _CompassNeedle(size: 90),
+                    ],
+                  ),
                 ),
               ),
             ),
-
-            // ---- Now playing bar ----
-            InkWell(
-              onTap: topPoi == null ? null : () => _togglePlayback(topPoi),
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: terracotta, width: 2),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 6,
-                      offset: Offset(0, 3),
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: terracotta, width: 2),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 6,
+                    offset: Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: gold.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: gold.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(Icons.temple_hindu, color: maroon, size: 26),
+                    child: const Icon(
+                      Icons.temple_hindu,
+                      color: maroon,
+                      size: 26,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Now approaching',
-                            style: TextStyle(fontSize: 11, color: Colors.black54),
-                          ),
-                          Text(
-                            topPoi?.name ?? 'Nothing playing yet',
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: maroon,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Now approaching',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  Text(
+                                    topPoi?.name ?? 'Nothing playing yet',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: maroon,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
+                            _VolumeButton(audioPlayer: _audioPlayer),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Align(
+                          alignment: Alignment.center,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.replay_5, color: terracotta),
+                                iconSize: 26,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onPressed: () => _seekBy(const Duration(seconds: -5)),
+                              ),
+                              const SizedBox(width: 18),
+                              GestureDetector(
+                                onTap: topPoi == null || isResolvingAudio ? null : () => _togglePlayback(topPoi),
+                                child: Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: const BoxDecoration(
+                                    color: maroon,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: isResolvingAudio
+                                      ? const Padding(
+                                          padding: EdgeInsets.all(12),
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.5,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : Icon(
+                                          isPlaying && _playingPoiId == topPoi?.id
+                                              ? Icons.pause
+                                              : Icons.play_arrow,
+                                          color: Colors.white,
+                                          size: 24,
+                                        ),
+                                ),
+                              ),
+                              const SizedBox(width: 18),
+                              IconButton(
+                                icon: const Icon(Icons.forward_5, color: terracotta),
+                                iconSize: 26,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onPressed: () => _seekBy(const Duration(seconds: 5)),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 4),
+                        SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            trackHeight: 3,
+                            thumbShape: const RoundSliderThumbShape(
+                              enabledThumbRadius: 5,
+                            ),
+                            overlayShape: const RoundSliderOverlayShape(
+                              overlayRadius: 10,
+                            ),
+                            activeTrackColor: terracotta,
+                            inactiveTrackColor: sandstone,
+                            thumbColor: terracotta,
+                          ),
+                          child: Slider(
+                            min: 0,
+                            max: _duration.inMilliseconds > 0
+                                ? _duration.inMilliseconds.toDouble()
+                                : 1,
+                            value: _position.inMilliseconds
+                                .clamp(
+                                  0,
+                                  _duration.inMilliseconds > 0
+                                      ? _duration.inMilliseconds
+                                      : 1,
+                                )
+                                .toDouble(),
+                            onChanged: (value) {
+                              setState(() {
+                                _position = Duration(
+                                  milliseconds: value.toInt(),
+                                );
+                              });
+                            },
+                            onChangeEnd: (value) async {
+                              await _audioPlayer.seek(
+                                Duration(
+                                  milliseconds: value.toInt(),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(_formatDuration(_position),
+                                  style: const TextStyle(fontSize: 10, color: Colors.black45)),
+                              Text(_formatDuration(_duration),
+                                  style: const TextStyle(fontSize: 10, color: Colors.black45)),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    Container(
-                      width: 34,
-                      height: 34,
-                      decoration: const BoxDecoration(color: maroon, shape: BoxShape.circle),
-                      child: Icon(
-                        isPlaying && _playingPoiId == topPoi?.id
-                            ? Icons.pause
-                            : Icons.play_arrow,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-
-            // ---- Manual list handle ----
             InkWell(
               onTap: () {
                 Navigator.push(
@@ -960,7 +1119,7 @@ class _CompassLabel extends StatelessWidget {
       padding: const EdgeInsets.all(4),
       child: Text(
         label,
-        style: const TextStyle(fontSize: 11, color: Colors.black45, fontWeight: FontWeight.w600),
+        style: const TextStyle(fontSize: 15, color: Colors.black45, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -1010,6 +1169,140 @@ class _NeedlePainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+// ---------- Reusable volume popup button ----------
+
+class _VolumeButton extends StatefulWidget {
+  final AudioPlayer audioPlayer;
+  const _VolumeButton({required this.audioPlayer});
+
+  @override
+  State<_VolumeButton> createState() => _VolumeButtonState();
+}
+
+class _VolumeButtonState extends State<_VolumeButton> {
+  final LayerLink _layerLink = LayerLink();
+  OverlayEntry? _overlayEntry;
+  double _volume = 1.0;
+
+  void _toggleSlider() {
+    if (_overlayEntry != null) {
+      _closeSlider();
+    } else {
+      _openSlider();
+    }
+  }
+
+  void _openSlider() {
+    final overlay = Overlay.of(context);
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _closeSlider,
+            ),
+          ),
+          CompositedTransformFollower(
+            link: _layerLink,
+            showWhenUnlinked: false,
+            targetAnchor: Alignment.topRight,
+            followerAnchor: Alignment.bottomRight,
+            offset: const Offset(0, -8),
+            child: Material(
+              elevation: 6,
+              borderRadius: BorderRadius.circular(20),
+              color: Colors.transparent,
+              child: Container(
+                width: 160,
+                height: 44,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: terracotta.withOpacity(0.4)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 8,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: StatefulBuilder(
+                  builder: (context, setPopupState) {
+                    return Row(
+                      children: [
+                        const Icon(Icons.volume_down, size: 14, color: Colors.black45),
+                        Expanded(
+                          child: SliderTheme(
+                            data: SliderTheme.of(context).copyWith(
+                              trackHeight: 3,
+                              thumbShape: const RoundSliderThumbShape(
+                                enabledThumbRadius: 6,
+                              ),
+                              overlayShape: const RoundSliderOverlayShape(
+                                overlayRadius: 12,
+                              ),
+                              activeTrackColor: terracotta,
+                              inactiveTrackColor: sandstone,
+                              thumbColor: terracotta,
+                            ),
+                            child: Slider(
+                              min: 0,
+                              max: 1,
+                              value: _volume,
+                              onChanged: (value) {
+                                setPopupState(() => _volume = value);
+                                setState(() {});
+                                widget.audioPlayer.setVolume(value);
+                              },
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.volume_up, size: 14, color: terracotta),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    overlay.insert(_overlayEntry!);
+    setState(() {});
+  }
+
+  void _closeSlider() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _overlayEntry?.remove();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: IconButton(
+        icon: Icon(
+          _volume == 0 ? Icons.volume_off : Icons.volume_up,
+          color: terracotta,
+        ),
+        onPressed: _toggleSlider,
+        splashRadius: 20,
+      ),
+    );
+  }
+}
+
 // ---------- SCREEN 4: Now Playing / Queue ----------
 
 class NowPlayingScreen extends StatefulWidget {
@@ -1030,6 +1323,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   bool isPlaying = false;
   bool isLoading = true;
+  bool isResolvingAudio = false;
   String? errorMessage;
 
   Poi? currentPoi;
@@ -1039,7 +1333,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
 
-  double get heading => 214.0; //why is this here? someone please fix this
+  double get heading => 214.0;
 
   @override
   void initState() {
@@ -1115,9 +1409,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
   }
 
-  // Demo ranking:
-  // Every POI gets a stable virtual bearing. As the heading slider moves,
-  // the angular distance changes, so the queue visibly re-orders live.
   double _virtualBearing(Poi poi, int index) {
     var hash = 0;
     for (final codeUnit in poi.id.codeUnits) {
@@ -1136,7 +1427,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     if (_allPois.isEmpty) return;
 
     final selectedId = currentPoi?.id;
-
     final candidates = _allPois.where((poi) => poi.id != selectedId).toList();
 
     candidates.sort((a, b) {
@@ -1157,8 +1447,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       queue = candidates;
     });
 
-    // During Auto Play, automatically play the new best POI whenever
-    // the slider rotation causes the first queue item to change.
     if (autoPlayChangedItem &&
         queue.isNotEmpty &&
         queue.first.id != oldFirst) {
@@ -1178,7 +1466,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         );
         poi.audioUrls[AppSettings.selectedLanguage] = audioUrl;
       } catch (e) {
-        print('Translation failed: $e');
+        debugPrint('Translation failed: $e');
       }
     }
 
@@ -1191,15 +1479,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         _duration = Duration.zero;
       });
       await _audioPlayer.play(UrlSource(audioUrl));
-    } catch (_) {
-      // Demo autoplay should not crash the UI if a POI has a bad URL.
-    }
+    } catch (_) {}
   }
 
   Future<void> _togglePlayback(Poi poi) async {
     String audioUrl = poi.getAudioUrl(AppSettings.selectedLanguage).trim();
 
     if (AppSettings.selectedLanguage != 'en' && !poi.audioUrls.containsKey(AppSettings.selectedLanguage)) {
+      setState(() => isResolvingAudio = true);
       try {
         audioUrl = await TranslationService().getTranslatedAudioUrl(
           poiId: poi.id,
@@ -1208,7 +1495,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         );
         poi.audioUrls[AppSettings.selectedLanguage] = audioUrl;
       } catch (e) {
-        print('Translation failed: $e');
+        debugPrint('Translation failed: $e');
+      } finally {
+        if (mounted) setState(() => isResolvingAudio = false);
       }
     }
 
@@ -1237,6 +1526,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
   }
 
+  Future<void> _seekBy(Duration delta) async {
+    final maxMs = _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 0;
+    final newMs = (_position.inMilliseconds + delta.inMilliseconds).clamp(0, maxMs);
+    final newPosition = Duration(milliseconds: newMs);
+    setState(() => _position = newPosition);
+    await _audioPlayer.seek(newPosition);
+  }
+
   Future<void> _selectPoi(Poi poi) async {
     await _audioPlayer.stop();
     if (!mounted) return;
@@ -1249,6 +1546,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     });
 
     _rerankQueue();
+    await _playPoi(poi);
   }
 
   String _formatDuration(Duration d) {
@@ -1410,10 +1708,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                     ],
                                   ),
                                 ),
-                                Icon(
-                                  index == 0 ? Icons.volume_up : Icons.play_arrow,
-                                  color: terracotta,
-                                ),
+                                index == 0
+                                    ? _VolumeButton(audioPlayer: _audioPlayer)
+                                    : const Icon(Icons.play_arrow, color: terracotta),
                               ],
                             ),
                           ),
@@ -1442,6 +1739,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   Widget _nowPlayingCard(Poi poi) {
+    final isCurrentPlaying = isPlaying;
+    final script = poi.getScript(AppSettings.selectedLanguage).isNotEmpty
+        ? poi.getScript(AppSettings.selectedLanguage)
+        : poi.getScript('en');
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1456,99 +1758,142 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: gold.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.temple_hindu, color: maroon, size: 32),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Now approaching',
-                  style: TextStyle(fontSize: 12, color: Colors.black54),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: gold.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                Text(
-                  poi.name,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: maroon,
-                  ),
+                child: const Icon(
+                  Icons.temple_hindu,
+                  color: maroon,
+                  size: 32,
                 ),
-                const SizedBox(height: 4),
-                if (poi.getScript(AppSettings.selectedLanguage).isNotEmpty)
-                  Text(
-                    poi.getScript(AppSettings.selectedLanguage),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.black54,
-                    ),
-                  )
-                else
-                  const Text(
-                    'Description not available yet.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontStyle: FontStyle.italic,
-                      color: Colors.black45,
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    trackHeight: 4,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-                    activeTrackColor: terracotta,
-                    inactiveTrackColor: sandstone,
-                    thumbColor: terracotta,
-                  ),
-                  child: Slider(
-                    min: 0,
-                    max: _duration.inMilliseconds > 0
-                        ? _duration.inMilliseconds.toDouble()
-                        : 1,
-                    value: _position.inMilliseconds
-                        .clamp(0, _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 1)
-                        .toDouble(),
-                    onChanged: (value) {
-                      setState(() => _position = Duration(milliseconds: value.toInt()));
-                    },
-                    onChangeEnd: (value) async {
-                      await _audioPlayer.seek(Duration(milliseconds: value.toInt()));
-                    },
-                  ),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_formatDuration(_position),
-                        style: const TextStyle(fontSize: 10, color: Colors.black45)),
-                    Text(_formatDuration(_duration),
-                        style: const TextStyle(fontSize: 10, color: Colors.black45)),
+                    Text(
+                      poi.name,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: maroon,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      script.isNotEmpty ? script : 'Description not available yet.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: script.isNotEmpty ? Colors.black54 : Colors.black45,
+                        fontStyle: script.isNotEmpty ? FontStyle.normal : FontStyle.italic,
+                      ),
+                    ),
                   ],
                 ),
-              ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Align(
+              alignment: Alignment.center,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.replay_5, color: terracotta),
+                    iconSize: 26,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () => _seekBy(const Duration(seconds: -5)),
+                  ),
+                  const SizedBox(width: 20),
+                  GestureDetector(
+                    onTap: isResolvingAudio ? null : () => _togglePlayback(poi),
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: const BoxDecoration(
+                        color: maroon,
+                        shape: BoxShape.circle,
+                      ),
+                      child: isResolvingAudio
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Icon(
+                              isCurrentPlaying ? Icons.pause : Icons.play_arrow,
+                              color: Colors.white,
+                              size: 26,
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  IconButton(
+                    icon: const Icon(Icons.forward_5, color: terracotta),
+                    iconSize: 26,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () => _seekBy(const Duration(seconds: 5)),
+                  ),
+                ],
+              ),
             ),
           ),
-          IconButton(
-            iconSize: 40,
-            icon: Icon(
-              isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
-              color: terracotta,
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 4,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+              activeTrackColor: terracotta,
+              inactiveTrackColor: sandstone,
+              thumbColor: terracotta,
             ),
-            onPressed: () => _togglePlayback(poi),
+            child: Slider(
+              min: 0,
+              max: _duration.inMilliseconds > 0
+                  ? _duration.inMilliseconds.toDouble()
+                  : 1,
+              value: _position.inMilliseconds
+                  .clamp(0, _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 1)
+                  .toDouble(),
+              onChanged: (value) {
+                setState(() => _position = Duration(milliseconds: value.toInt()));
+              },
+              onChangeEnd: (value) async {
+                await _audioPlayer.seek(Duration(milliseconds: value.toInt()));
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(_formatDuration(_position),
+                    style: const TextStyle(fontSize: 10, color: Colors.black45)),
+                Text(_formatDuration(_duration),
+                    style: const TextStyle(fontSize: 10, color: Colors.black45)),
+              ],
+            ),
           ),
         ],
       ),
@@ -1558,7 +1903,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
 // ---------- SCREEN 5: Manual POI List ----------
 
-class ManualPoiListScreen extends StatelessWidget {
+class ManualPoiListScreen extends StatefulWidget {
   final List<Poi> pois;
   final ValueChanged<Poi> onPoiSelected;
 
@@ -1569,7 +1914,34 @@ class ManualPoiListScreen extends StatelessWidget {
   });
 
   @override
+  State<ManualPoiListScreen> createState() => _ManualPoiListScreenState();
+}
+
+class _ManualPoiListScreenState extends State<ManualPoiListScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<Poi> get _filteredPois {
+    if (_searchQuery.trim().isEmpty) return widget.pois;
+
+    final query = _searchQuery.trim().toLowerCase();
+    return widget.pois.where((poi) {
+      final nameMatch = poi.name.toLowerCase().contains(query);
+      final descriptionMatch = poi.getScript('en').toLowerCase().contains(query);
+      return nameMatch || descriptionMatch;
+    }).toList();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final filteredPois = _filteredPois;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: maroon,
@@ -1587,18 +1959,31 @@ class ManualPoiListScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.black12),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.search,
                     color: Colors.black45,
                   ),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
+                      controller: _searchController,
+                      onChanged: (value) {
+                        setState(() => _searchQuery = value);
+                      },
                       decoration: InputDecoration(
                         hintText: 'Search POIs',
                         border: InputBorder.none,
+                        suffixIcon: _searchQuery.isEmpty
+                            ? null
+                            : IconButton(
+                                icon: const Icon(Icons.clear, color: Colors.black45, size: 18),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                              ),
                       ),
                     ),
                   ),
@@ -1607,19 +1992,24 @@ class ManualPoiListScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Expanded(
-              child: pois.isEmpty
-                  ? const Center(
-                      child: Text('No POIs available.'),
+              child: filteredPois.isEmpty
+                  ? Center(
+                      child: Text(
+                        _searchQuery.isEmpty
+                            ? 'No POIs available.'
+                            : 'No POIs match "$_searchQuery".',
+                        textAlign: TextAlign.center,
+                      ),
                     )
                   : ListView.separated(
-                      itemCount: pois.length,
+                      itemCount: filteredPois.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {
-                        final poi = pois[index];
+                        final poi = filteredPois[index];
 
                         return InkWell(
                           onTap: () {
-                            onPoiSelected(poi);
+                            widget.onPoiSelected(poi);
                             Navigator.pop(context);
                           },
                           borderRadius: BorderRadius.circular(10),
