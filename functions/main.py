@@ -10,9 +10,9 @@ from gtts import gTTS
 
 firebase_admin.initialize_app(options={'projectId': 'dishavaani-db373'})
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
-BUCKET_NAME = "Audio"  # change if your Supabase bucket has a different name
+SUPABASE_URL = "https://fexglgxcvqcjjzsnhwrp.supabase.co"
+SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZleGdsZ3hjdnFjamp6c25od3JwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NzU4ODczNiwiZXhwIjoyMTAzMTY0NzM2fQ.GwB5G1M0uNJ2mT6n8Ov1dyWjv5JoGATNS-jFjlD1oK0"
+BUCKET_NAME = "audio"  # change if your Supabase bucket has a different name
 
 
 @https_fn.on_request()

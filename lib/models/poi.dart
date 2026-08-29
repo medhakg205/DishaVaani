@@ -24,7 +24,7 @@ class Poi {
     final rawAudioUrls = data['audioUrls'] as Map<dynamic, dynamic>?;
     final Map<String, String> audioUrlsMap = rawAudioUrls != null
         ? rawAudioUrls.map((key, value) => MapEntry(key.toString(), value.toString()))
-        : const {};
+        : {};
 
     final rawScripts = data['scripts'] as Map<dynamic, dynamic>?;
     final Map<String, String> scriptsMap = rawScripts != null

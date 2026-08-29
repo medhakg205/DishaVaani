@@ -9,6 +9,8 @@ import 'package:geolocator/geolocator.dart';
 import 'sensor_service.dart';
 import 'dart:async';
 import 'matching_engine.dart';
+import 'app_settings.dart';
+import 'services/translation_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -191,19 +193,28 @@ class LanguageSelectScreen extends StatefulWidget {
 }
 
 class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
-  String selectedLanguage = 'English';
+  late String selectedLanguage;
+
+  @override
+  void initState() {
+    super.initState();
+    final entry = languageCodes.entries
+        .where((e) => e.value == AppSettings.selectedLanguage)
+        .firstOrNull;
+    selectedLanguage = entry?.key ?? 'English';
+  }
 
   final List<Map<String, dynamic>> languages = [
     {'name': 'English', 'native': 'English', 'enabled': true},
-    {'name': 'Hindi', 'native': 'हिन्दी', 'enabled': false},
-    {'name': 'Tamil', 'native': 'தமிழ்', 'enabled': false},
-    {'name': 'Telugu', 'native': 'తెలుగు', 'enabled': false},
-    {'name': 'Kannada', 'native': 'ಕನ್ನಡ', 'enabled': false},
-    {'name': 'Malayalam', 'native': 'മലയാളം', 'enabled': false},
-    {'name': 'Marathi', 'native': 'मराठी', 'enabled': false},
-    {'name': 'Bengali', 'native': 'বাংলা', 'enabled': false},
-    {'name': 'Gujarati', 'native': 'ગુજરાતી', 'enabled': false},
-    {'name': 'Punjabi', 'native': 'ਪੰਜਾਬੀ', 'enabled': false},
+    {'name': 'Hindi', 'native': 'हिन्दी', 'enabled': true},
+    {'name': 'Tamil', 'native': 'தமிழ்', 'enabled': true},
+    {'name': 'Telugu', 'native': 'తెలుగు', 'enabled': true},
+    {'name': 'Kannada', 'native': 'ಕನ್ನಡ', 'enabled': true},
+    {'name': 'Malayalam', 'native': 'മലയാളം', 'enabled': true},
+    {'name': 'Marathi', 'native': 'मराठी', 'enabled': true},
+    {'name': 'Bengali', 'native': 'বাংলা', 'enabled': true},
+    {'name': 'Gujarati', 'native': 'ગુજરાતી', 'enabled': true},
+    {'name': 'Punjabi', 'native': 'ਪੰਜਾਬੀ', 'enabled': true},
   ];
 
   @override
@@ -295,7 +306,10 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  AppSettings.selectedLanguage = languageCodes[selectedLanguage] ?? 'en';
+                  Navigator.pop(context);
+                },
                 child: const Text('CONFIRM'),
               ),
             ),
@@ -606,10 +620,10 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
         lat = reading.lat;
         long = reading.long;
 
-        if (reading.lat != null && reading.long != null && _monumentPois.isNotEmpty) {
+        if (_monumentPois.isNotEmpty) {
           final result = runMatchingEngine(
-            reading.lat!,
-            reading.long!,
+            reading.lat,
+            reading.long,
             reading.heading,
             _monumentPois,
           );
@@ -651,7 +665,20 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   }
 
   Future<void> _togglePlayback(Poi poi) async {
-    final audioUrl = poi.getAudioUrl('en').trim();
+    String audioUrl = poi.getAudioUrl(AppSettings.selectedLanguage).trim();
+
+    if (AppSettings.selectedLanguage != 'en' && !poi.audioUrls.containsKey(AppSettings.selectedLanguage)) {
+      try {
+        audioUrl = await TranslationService().getTranslatedAudioUrl(
+          poiId: poi.id,
+          sourceScript: poi.getScript('en'),
+          targetLanguage: AppSettings.selectedLanguage,
+        );
+        poi.audioUrls[AppSettings.selectedLanguage] = audioUrl;
+      } catch (e) {
+        print('Translation failed: $e');
+      }
+    }
 
     if (audioUrl.isEmpty) {
       if (!mounted) return;
@@ -1140,7 +1167,21 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   Future<void> _playPoi(Poi poi) async {
-    final audioUrl = poi.getAudioUrl('en').trim();
+    String audioUrl = poi.getAudioUrl(AppSettings.selectedLanguage).trim();
+
+    if (AppSettings.selectedLanguage != 'en' && !poi.audioUrls.containsKey(AppSettings.selectedLanguage)) {
+      try {
+        audioUrl = await TranslationService().getTranslatedAudioUrl(
+          poiId: poi.id,
+          sourceScript: poi.getScript('en'),
+          targetLanguage: AppSettings.selectedLanguage,
+        );
+        poi.audioUrls[AppSettings.selectedLanguage] = audioUrl;
+      } catch (e) {
+        print('Translation failed: $e');
+      }
+    }
+
     if (audioUrl.isEmpty) return;
 
     try {
@@ -1156,7 +1197,20 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   Future<void> _togglePlayback(Poi poi) async {
-    final audioUrl = poi.getAudioUrl('en').trim();
+    String audioUrl = poi.getAudioUrl(AppSettings.selectedLanguage).trim();
+
+    if (AppSettings.selectedLanguage != 'en' && !poi.audioUrls.containsKey(AppSettings.selectedLanguage)) {
+      try {
+        audioUrl = await TranslationService().getTranslatedAudioUrl(
+          poiId: poi.id,
+          sourceScript: poi.getScript('en'),
+          targetLanguage: AppSettings.selectedLanguage,
+        );
+        poi.audioUrls[AppSettings.selectedLanguage] = audioUrl;
+      } catch (e) {
+        print('Translation failed: $e');
+      }
+    }
 
     if (audioUrl.isEmpty) {
       if (!mounted) return;
@@ -1343,9 +1397,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                           color: Colors.black54,
                                         ),
                                       ),
-                                      if (queuedPoi.getScript('en').isNotEmpty)
+                                      if (queuedPoi.getScript(AppSettings.selectedLanguage).isNotEmpty)
                                         Text(
-                                          queuedPoi.getScript('en'),
+                                          queuedPoi.getScript(AppSettings.selectedLanguage),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
@@ -1431,9 +1485,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                if (poi.getScript('en').isNotEmpty)
+                if (poi.getScript(AppSettings.selectedLanguage).isNotEmpty)
                   Text(
-                    poi.getScript('en'),
+                    poi.getScript(AppSettings.selectedLanguage),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -1603,9 +1657,9 @@ class ManualPoiListScreen extends StatelessWidget {
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
-                                      if (poi.getScript('en').isNotEmpty)
+                                      if (poi.getScript(AppSettings.selectedLanguage).isNotEmpty)
                                         Text(
-                                          poi.getScript('en'),
+                                          poi.getScript(AppSettings.selectedLanguage),
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
