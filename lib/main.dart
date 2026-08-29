@@ -560,14 +560,11 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
 
   List<Poi> _inRangePois = [];
   Poi? get _topPoi => _inRangePois.isNotEmpty ? _inRangePois.first : null;
-  String? _candidatePoiId;
-  Timer? _stabilityTimer;
-  Poi? _pendingSwitchPoi;
-  Timer? _switchTimer;
-  String? _skippedPoiId;
 
-  static const _stabilityDelay = Duration(seconds: 2);
-  static const _switchDelay = Duration(seconds: 5);
+  String? _pendingDetectionId;
+  Timer? _detectionStabilityTimer;
+
+  static const _detectionStabilityDelay = Duration(seconds: 2);
 
   @override
   void initState() {
@@ -652,13 +649,38 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
       });
     }
 
-    // Auto-play when pointing at a new POI
-    if (detectedPoi != null && detectedPoi.id != _autoPlayedPoiId) {
-      _autoPlayedPoiId = detectedPoi.id;
-      await _togglePlayback(detectedPoi);
-    }
+    _handleDetectedPoi(detectedPoi);
   });
 }
+
+  // Waits for a detected POI to stay stable for a short delay before acting
+  // on it — this prevents rapid audio switching from tiny GPS/compass jitter
+  // near the boundary between two POIs' detection zones.
+  void _handleDetectedPoi(Poi? detectedPoi) {
+    if (detectedPoi == null) {
+      _pendingDetectionId = null;
+      _detectionStabilityTimer?.cancel();
+      return;
+    }
+
+    if (detectedPoi.id == _autoPlayedPoiId) {
+      _pendingDetectionId = null;
+      _detectionStabilityTimer?.cancel();
+      return;
+    }
+
+    if (_pendingDetectionId != detectedPoi.id) {
+      _pendingDetectionId = detectedPoi.id;
+      _detectionStabilityTimer?.cancel();
+      _detectionStabilityTimer = Timer(_detectionStabilityDelay, () {
+        if (!mounted) return;
+        if (_topPoi?.id == detectedPoi.id) {
+          _autoPlayedPoiId = detectedPoi.id;
+          _togglePlayback(detectedPoi);
+        }
+      });
+    }
+  }
 
   Future<String?> _resolveAudioUrl(Poi poi) async {
     final lang = AppSettings.selectedLanguage;
@@ -713,63 +735,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
           : result.queue;
     });
 
-    _onTopPoiUpdated();
-  }
-
-  void _onTopPoiUpdated() {
-    final topPoi = _topPoi;
-
-    if (topPoi == null) {
-      _candidatePoiId = null;
-      _stabilityTimer?.cancel();
-      _cancelPendingSwitch();
-      return;
-    }
-
-    if (_playingPoiId == topPoi.id && isPlaying) {
-      _candidatePoiId = null;
-      _stabilityTimer?.cancel();
-      _cancelPendingSwitch();
-      return;
-    }
-
-    if (_skippedPoiId == topPoi.id) return;
-
-    if (_candidatePoiId != topPoi.id) {
-      _candidatePoiId = topPoi.id;
-      _stabilityTimer?.cancel();
-      _stabilityTimer = Timer(_stabilityDelay, () {
-        if (!mounted) return;
-        if (_topPoi?.id == topPoi.id) _decideAction(topPoi);
-      });
-    }
-  }
-
-  void _decideAction(Poi topPoi) {
-    if (_playingPoiId == null || !isPlaying) {
-      _togglePlayback(topPoi);
-    } else if (_playingPoiId != topPoi.id) {
-      _startPendingSwitch(topPoi);
-    }
-  }
-
-  void _startPendingSwitch(Poi newPoi) {
-    if (_pendingSwitchPoi?.id == newPoi.id) return;
-
-    setState(() => _pendingSwitchPoi = newPoi);
-    _switchTimer?.cancel();
-    _switchTimer = Timer(_switchDelay, () {
-      if (!mounted) return;
-      final target = _pendingSwitchPoi;
-      setState(() => _pendingSwitchPoi = null);
-      if (target != null) _togglePlayback(target);
-    });
-  }
-
-
-  void _cancelPendingSwitch() {
-    _switchTimer?.cancel();
-    if (_pendingSwitchPoi != null) setState(() => _pendingSwitchPoi = null);
+    _handleDetectedPoi(_topPoi);
   }
 
   Future<void> _togglePlayback(Poi poi) async {
@@ -812,8 +778,7 @@ if (audioUrl == null || audioUrl.trim().isEmpty) {
     _sensorSub?.cancel();
     _sensorService.dispose();
     _audioPlayer.dispose();
-    _stabilityTimer?.cancel();
-    _switchTimer?.cancel();
+    _detectionStabilityTimer?.cancel();
     super.dispose();
   }
 
