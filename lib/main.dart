@@ -561,16 +561,21 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   List<Poi> _inRangePois = [];
   Poi? get _topPoi => _inRangePois.isNotEmpty ? _inRangePois.first : null;
 
+  String? _pendingDetectionId;
+  Timer? _detectionStabilityTimer;
+
+  static const _detectionStabilityDelay = Duration(seconds: 2);
+
   @override
   void initState() {
-    super.initState();
-    _loadPois();
-    _startSensors();
+  super.initState();
+  _loadPois();
+  _startSensors();
 
-    _audioPlayer.onPlayerStateChanged.listen((state) {
-      if (!mounted) return;
-      setState(() => isPlaying = state == PlayerState.playing);
-    });
+  _audioPlayer.onPlayerStateChanged.listen((state) {
+    if (!mounted) return;
+    setState(() => isPlaying = state == PlayerState.playing);
+  });
 
     _audioPlayer.onPlayerComplete.listen((_) {
       if (!mounted) return;
@@ -644,13 +649,38 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
       });
     }
 
-    // Auto-play when pointing at a new POI
-    if (detectedPoi != null && detectedPoi.id != _autoPlayedPoiId) {
-      _autoPlayedPoiId = detectedPoi.id;
-      await _togglePlayback(detectedPoi);
-    }
+    _handleDetectedPoi(detectedPoi);
   });
 }
+
+  // Waits for a detected POI to stay stable for a short delay before acting
+  // on it — this prevents rapid audio switching from tiny GPS/compass jitter
+  // near the boundary between two POIs' detection zones.
+  void _handleDetectedPoi(Poi? detectedPoi) {
+    if (detectedPoi == null) {
+      _pendingDetectionId = null;
+      _detectionStabilityTimer?.cancel();
+      return;
+    }
+
+    if (detectedPoi.id == _autoPlayedPoiId) {
+      _pendingDetectionId = null;
+      _detectionStabilityTimer?.cancel();
+      return;
+    }
+
+    if (_pendingDetectionId != detectedPoi.id) {
+      _pendingDetectionId = detectedPoi.id;
+      _detectionStabilityTimer?.cancel();
+      _detectionStabilityTimer = Timer(_detectionStabilityDelay, () {
+        if (!mounted) return;
+        if (_topPoi?.id == detectedPoi.id) {
+          _autoPlayedPoiId = detectedPoi.id;
+          _togglePlayback(detectedPoi);
+        }
+      });
+    }
+  }
 
   Future<String?> _resolveAudioUrl(Poi poi) async {
     final lang = AppSettings.selectedLanguage;
@@ -699,12 +729,13 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
     );
 
     if (!mounted) return;
-
     setState(() {
       _inRangePois = result.singleMatch != null
           ? [result.singleMatch!]
           : result.queue;
     });
+
+    _handleDetectedPoi(_topPoi);
   }
 
   Future<void> _togglePlayback(Poi poi) async {
@@ -747,6 +778,7 @@ if (audioUrl == null || audioUrl.trim().isEmpty) {
     _sensorSub?.cancel();
     _sensorService.dispose();
     _audioPlayer.dispose();
+    _detectionStabilityTimer?.cancel();
     super.dispose();
   }
 
@@ -1067,12 +1099,21 @@ if (audioUrl == null || audioUrl.trim().isEmpty) {
               ),
             ),
             InkWell(
-              onTap: () {
+              onTap: () async {
+                // Pause this screen's audio before handing off to Screen 4 —
+                // otherwise both AudioPlayer instances could play at once.
+                if (isPlaying) {
+                  await _audioPlayer.pause();
+                }
+
+                if (!context.mounted) return;
+
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (_) => NowPlayingScreen(
                       monumentId: widget.monumentId,
+                      initialPois: _inRangePois.isNotEmpty ? _inRangePois : null,
                     ),
                   ),
                 );
@@ -1107,6 +1148,7 @@ if (audioUrl == null || audioUrl.trim().isEmpty) {
       ),
     );
   }
+    
 }
 
 class _CompassLabel extends StatelessWidget {
@@ -1307,10 +1349,12 @@ class _VolumeButtonState extends State<_VolumeButton> {
 
 class NowPlayingScreen extends StatefulWidget {
   final String monumentId;
+  final List<Poi>? initialPois;
 
   const NowPlayingScreen({
     super.key,
     this.monumentId = 'qutub_minar',
+    this.initialPois,
   });
 
   @override
@@ -1371,8 +1415,30 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     _audioPlayer.dispose();
     super.dispose();
   }
-
   Future<void> _loadPois() async {
+    // If a real ranked queue was passed in from detection, use it directly —
+    // skip the fetch and the fake demo ranking entirely.
+    if (widget.initialPois != null) {
+      _allPois = List<Poi>.from(widget.initialPois!);
+
+      if (_allPois.isEmpty) {
+        setState(() {
+          currentPoi = null;
+          queue = [];
+          isLoading = false;
+        });
+        return;
+      }
+
+      setState(() {
+        currentPoi = _allPois.first;
+        queue = _allPois.skip(1).toList();
+        isLoading = false;
+      });
+      return;
+    }
+
+    // Fallback: no real data available, fetch + fake-rank as before.
     setState(() {
       isLoading = true;
       errorMessage = null;
@@ -1407,7 +1473,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         isLoading = false;
       });
     }
-  }
+  } 
 
   double _virtualBearing(Poi poi, int index) {
     var hash = 0;
@@ -1513,6 +1579,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       if (isPlaying) {
         await _audioPlayer.pause();
       } else {
+        setState(() => isResolvingAudio = true);
         await _audioPlayer.play(UrlSource(audioUrl));
       }
     } catch (error) {
@@ -1534,7 +1601,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     await _audioPlayer.seek(newPosition);
   }
 
-  Future<void> _selectPoi(Poi poi) async {
+    Future<void> _selectPoi(Poi poi) async {
     await _audioPlayer.stop();
     if (!mounted) return;
 
@@ -1898,7 +1965,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         ],
       ),
     );
-  }
+  }             
 }
 
 // ---------- SCREEN 5: Manual POI List ----------
@@ -1952,6 +2019,7 @@ class _ManualPoiListScreenState extends State<ManualPoiListScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            // ---- SEARCH BAR (dynamic / live filtering) ----
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
@@ -1991,6 +2059,7 @@ class _ManualPoiListScreenState extends State<ManualPoiListScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            // ---- RESULTS LIST (reflects _filteredPois, not widget.pois) ----
             Expanded(
               child: filteredPois.isEmpty
                   ? Center(

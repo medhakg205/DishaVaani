@@ -55,10 +55,12 @@ class SensorService {
       throw Exception('Location permission not granted');
     }
 
+
     _positionSub = Geolocator.getPositionStream(
       locationSettings: _getLocationSettings(),
     ).listen((position) {
       _lastPosition = position;
+      print('GPS UPDATE: lat=${position.latitude}, long=${position.longitude}');
       _emit();
     });
 
