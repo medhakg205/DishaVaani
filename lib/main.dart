@@ -170,7 +170,8 @@ class _SplashScreenState extends State<SplashScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (_) => const LanguageSelectScreen()),
+                        builder: (_) => const LanguageSelectScreen(),
+                      ),
                     );
                   },
                   child: const Text('CHOOSE LANGUAGE'),
@@ -185,6 +186,7 @@ class _SplashScreenState extends State<SplashScreen> {
 }
 
 // ---------- Language Selection ----------
+
 class LanguageSelectScreen extends StatefulWidget {
   const LanguageSelectScreen({super.key});
 
@@ -561,21 +563,16 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   List<Poi> _inRangePois = [];
   Poi? get _topPoi => _inRangePois.isNotEmpty ? _inRangePois.first : null;
 
-  String? _pendingDetectionId;
-  Timer? _detectionStabilityTimer;
-
-  static const _detectionStabilityDelay = Duration(seconds: 2);
-
   @override
   void initState() {
-  super.initState();
-  _loadPois();
-  _startSensors();
+    super.initState();
+    _loadPois();
+    _startSensors();
 
-  _audioPlayer.onPlayerStateChanged.listen((state) {
-    if (!mounted) return;
-    setState(() => isPlaying = state == PlayerState.playing);
-  });
+    _audioPlayer.onPlayerStateChanged.listen((state) {
+      if (!mounted) return;
+      setState(() => isPlaying = state == PlayerState.playing);
+    });
 
     _audioPlayer.onPlayerComplete.listen((_) {
       if (!mounted) return;
@@ -618,68 +615,43 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
   }
 
   Future<void> _startSensors() async {
-  await _sensorService.start();
-  _sensorSub = _sensorService.readings.listen((reading) async {
-    if (!mounted) return;
+    await _sensorService.start();
+    _sensorSub = _sensorService.readings.listen((reading) async {
+      if (!mounted) return;
 
-    Poi? detectedPoi;
+      Poi? detectedPoi;
 
-    if (_monumentPois.isNotEmpty) {
-      final result = runMatchingEngine(
-        reading.lat,
-        reading.long,
-        reading.heading,
-        _monumentPois,
-      );
+      if (_monumentPois.isNotEmpty) {
+        final result = runMatchingEngine(
+          reading.lat,
+          reading.long,
+          reading.heading,
+          _monumentPois,
+        );
 
-      detectedPoi = result.singleMatch ?? (result.queue.isNotEmpty ? result.queue.first : null);
+        detectedPoi = result.singleMatch ?? (result.queue.isNotEmpty ? result.queue.first : null);
 
-      setState(() {
-        heading = reading.heading;
-        lat = reading.lat;
-        long = reading.long;
-        _inRangePois = detectedPoi != null ? [detectedPoi] : [];
-      });
-    } else {
-      setState(() {
-        heading = reading.heading;
-        lat = reading.lat;
-        long = reading.long;
-        _inRangePois = [];
-      });
-    }
+        setState(() {
+          heading = reading.heading;
+          lat = reading.lat;
+          long = reading.long;
+          _inRangePois = detectedPoi != null ? [detectedPoi] : [];
+        });
+      } else {
+        setState(() {
+          heading = reading.heading;
+          lat = reading.lat;
+          long = reading.long;
+          _inRangePois = [];
+        });
+      }
 
-    _handleDetectedPoi(detectedPoi);
-  });
-}
-
-  // Waits for a detected POI to stay stable for a short delay before acting
-  // on it — this prevents rapid audio switching from tiny GPS/compass jitter
-  // near the boundary between two POIs' detection zones.
-  void _handleDetectedPoi(Poi? detectedPoi) {
-    if (detectedPoi == null) {
-      _pendingDetectionId = null;
-      _detectionStabilityTimer?.cancel();
-      return;
-    }
-
-    if (detectedPoi.id == _autoPlayedPoiId) {
-      _pendingDetectionId = null;
-      _detectionStabilityTimer?.cancel();
-      return;
-    }
-
-    if (_pendingDetectionId != detectedPoi.id) {
-      _pendingDetectionId = detectedPoi.id;
-      _detectionStabilityTimer?.cancel();
-      _detectionStabilityTimer = Timer(_detectionStabilityDelay, () {
-        if (!mounted) return;
-        if (_topPoi?.id == detectedPoi.id) {
-          _autoPlayedPoiId = detectedPoi.id;
-          _togglePlayback(detectedPoi);
-        }
-      });
-    }
+      // Auto-play when pointing at a new POI
+      if (detectedPoi != null && detectedPoi.id != _autoPlayedPoiId) {
+        _autoPlayedPoiId = detectedPoi.id;
+        await _togglePlayback(detectedPoi);
+      }
+    });
   }
 
   Future<String?> _resolveAudioUrl(Poi poi) async {
@@ -734,8 +706,6 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
           ? [result.singleMatch!]
           : result.queue;
     });
-
-    _handleDetectedPoi(_topPoi);
   }
 
   Future<void> _togglePlayback(Poi poi) async {
@@ -744,12 +714,12 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
       return;
     }
 
-   final audioUrl = await _resolveAudioUrl(poi);
-if (audioUrl == null || audioUrl.trim().isEmpty) {
-  if (!mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('No audio available in this language yet.')),
-  );
+    final audioUrl = await _resolveAudioUrl(poi);
+    if (audioUrl == null || audioUrl.trim().isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No audio available in this language yet.')),
+      );
       return;
     }
 
@@ -778,7 +748,6 @@ if (audioUrl == null || audioUrl.trim().isEmpty) {
     _sensorSub?.cancel();
     _sensorService.dispose();
     _audioPlayer.dispose();
-    _detectionStabilityTimer?.cancel();
     super.dispose();
   }
 
@@ -1100,8 +1069,6 @@ if (audioUrl == null || audioUrl.trim().isEmpty) {
             ),
             InkWell(
               onTap: () async {
-                // Pause this screen's audio before handing off to Screen 4 —
-                // otherwise both AudioPlayer instances could play at once.
                 if (isPlaying) {
                   await _audioPlayer.pause();
                 }
@@ -1148,7 +1115,6 @@ if (audioUrl == null || audioUrl.trim().isEmpty) {
       ),
     );
   }
-    
 }
 
 class _CompassLabel extends StatelessWidget {
@@ -1211,7 +1177,7 @@ class _NeedlePainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// ---------- Reusable volume popup button ----------
+// ---------- Reusable Volume Popup Button ----------
 
 class _VolumeButton extends StatefulWidget {
   final AudioPlayer audioPlayer;
@@ -1415,9 +1381,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     _audioPlayer.dispose();
     super.dispose();
   }
+
   Future<void> _loadPois() async {
-    // If a real ranked queue was passed in from detection, use it directly —
-    // skip the fetch and the fake demo ranking entirely.
     if (widget.initialPois != null) {
       _allPois = List<Poi>.from(widget.initialPois!);
 
@@ -1438,7 +1403,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       return;
     }
 
-    // Fallback: no real data available, fetch + fake-rank as before.
     setState(() {
       isLoading = true;
       errorMessage = null;
@@ -1473,7 +1437,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         isLoading = false;
       });
     }
-  } 
+  }
 
   double _virtualBearing(Poi poi, int index) {
     var hash = 0;
@@ -1579,7 +1543,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       if (isPlaying) {
         await _audioPlayer.pause();
       } else {
-        setState(() => isResolvingAudio = true);
         await _audioPlayer.play(UrlSource(audioUrl));
       }
     } catch (error) {
@@ -1601,7 +1564,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     await _audioPlayer.seek(newPosition);
   }
 
-    Future<void> _selectPoi(Poi poi) async {
+  Future<void> _selectPoi(Poi poi) async {
     await _audioPlayer.stop();
     if (!mounted) return;
 
@@ -1965,7 +1928,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         ],
       ),
     );
-  }             
+  }
 }
 
 // ---------- SCREEN 5: Manual POI List ----------
@@ -2019,7 +1982,6 @@ class _ManualPoiListScreenState extends State<ManualPoiListScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // ---- SEARCH BAR (dynamic / live filtering) ----
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
@@ -2059,7 +2021,6 @@ class _ManualPoiListScreenState extends State<ManualPoiListScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            // ---- RESULTS LIST (reflects _filteredPois, not widget.pois) ----
             Expanded(
               child: filteredPois.isEmpty
                   ? Center(
