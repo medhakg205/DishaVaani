@@ -1,4 +1,4 @@
-// sensor_service.dart — fused GPS + compass reading stream
+// sensor.dart — fused GPS + compass reading stream
 import 'dart:async';
 import 'dart:io';
 
@@ -19,16 +19,29 @@ class SensorService {
   StreamSubscription<Position>? _positionSub;
   StreamSubscription<CompassEvent>? _compassSub;
 
-  final StreamController<SensorReading> _controller = StreamController<SensorReading>.broadcast();
+  final StreamController<SensorReading> _controller =
+      StreamController<SensorReading>.broadcast();
   Stream<SensorReading> get readings => _controller.stream;
 
   LocationSettings _getLocationSettings() {
     if (Platform.isAndroid) {
-      return AndroidSettings(accuracy: LocationAccuracy.best, distanceFilter: 1, intervalDuration: const Duration(milliseconds: 1000));
+      return AndroidSettings(
+        accuracy: LocationAccuracy.best,
+        distanceFilter: 1,
+        intervalDuration: const Duration(milliseconds: 1000),
+      );
     } else if (Platform.isIOS) {
-      return AppleSettings(accuracy: LocationAccuracy.best, activityType: ActivityType.fitness, distanceFilter: 1, pauseLocationUpdatesAutomatically: false);
+      return AppleSettings(
+        accuracy: LocationAccuracy.best,
+        activityType: ActivityType.fitness,
+        distanceFilter: 1,
+        pauseLocationUpdatesAutomatically: false,
+      );
     }
-    return const LocationSettings(accuracy: LocationAccuracy.best, distanceFilter: 1);
+    return const LocationSettings(
+      accuracy: LocationAccuracy.best,
+      distanceFilter: 1,
+    );
   }
 
   Future<void> start() async {
@@ -36,17 +49,20 @@ class SensorService {
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
-    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
       throw Exception('Location permission not granted');
     }
 
     // BUG FIX: original also ran a Timer.periodic polling getCurrentPosition()
     // every second alongside this stream — two competing location fetches
     // draining battery and racing each other. Stream alone is enough.
-    _positionSub = Geolocator.getPositionStream(locationSettings: _getLocationSettings()).listen((position) {
-      _lastPosition = position;
-      _emit();
-    });
+    _positionSub =
+        Geolocator.getPositionStream(locationSettings: _getLocationSettings())
+            .listen((position) {
+              _lastPosition = position;
+              _emit();
+            });
 
     _compassSub = FlutterCompass.events?.listen((event) {
       final raw = event.heading;
@@ -66,7 +82,13 @@ class SensorService {
 
   void _emit() {
     if (_lastPosition != null) {
-      _controller.add(SensorReading(lat: _lastPosition!.latitude, long: _lastPosition!.longitude, heading: _lastHeading ?? 0));
+      _controller.add(
+        SensorReading(
+          lat: _lastPosition!.latitude,
+          long: _lastPosition!.longitude,
+          heading: _lastHeading ?? 0,
+        ),
+      );
     }
   }
 

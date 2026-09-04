@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 
 import 'core/constants/app_colors.dart';
-import 'screens/splash_screen.dart';
+import 'screens/splash.dart';
 
 class DishaVaaniApp extends StatelessWidget {
   const DishaVaaniApp({super.key});

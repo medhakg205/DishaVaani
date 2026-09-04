@@ -1,11 +1,11 @@
-// home_screen.dart — screen 2: pick a monument, grouped POI counts from Firestore
+// home.dart — screen 2: pick a monument, grouped POI counts from Firestore
 import 'package:flutter/material.dart';
 
 import '../core/constants/app_colors.dart';
-import '../services/poi_service.dart';
-import 'itinerary_import_screen.dart';
-import 'point_detect_screen.dart';
-import 'splash_screen.dart';
+import '../services/poi.dart';
+import 'itinerary_import.dart';
+import 'point_detect.dart';
+import 'splash.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});

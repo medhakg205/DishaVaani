@@ -1,10 +1,12 @@
 import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'device_identity.dart';
 
 class SessionService {
-  final CollectionReference _sessionsRef =
-      FirebaseFirestore.instance.collection('sessions');
+  final CollectionReference _sessionsRef = FirebaseFirestore.instance
+      .collection('sessions');
 
   String _generateCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no confusing 0/O/1/I
@@ -63,19 +65,15 @@ class SessionService {
   }
 
   Future<void> updateMyLocation({
-  required String sessionId,
-  required double lat,
-  required double long,
-}) async {
-  final myId = await DeviceIdentity.getId();
+    required String sessionId,
+    required double lat,
+    required double long,
+  }) async {
+    final myId = await DeviceIdentity.getId();
 
-  await _sessionsRef
-      .doc(sessionId)
-      .collection('members')
-      .doc(myId)
-      .update({
-    'lat': lat,
-    'long': long,
-  });
-}
+    await _sessionsRef.doc(sessionId).collection('members').doc(myId).update({
+      'lat': lat,
+      'long': long,
+    });
+  }
 }

@@ -1,14 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
-import 'poi_service.dart';
+
+import 'poi.dart';
 import '../models/itinerary_stop.dart';
 import 'device_identity.dart';
 
 class ItineraryService {
-  static final CollectionReference _itinerariesRef =
-      FirebaseFirestore.instance.collection('itineraries');
+  static final CollectionReference _itinerariesRef = FirebaseFirestore.instance
+      .collection('itineraries');
 
   // TODO: point this at your actual backend once the parsing endpoint
   // exists — see note below about who builds this.
@@ -60,12 +62,15 @@ class ItineraryService {
         .map((s) => ItineraryStop.fromFirestore(s as Map<String, dynamic>))
         .toList();
   }
+
   // Matches each parsed stop's plain-text place name against the real POI
-// database, filling in poiId/lat/long where a confident match is found.
-// Stops that can't be matched are kept as-is (unresolved), so the app can
-// still show them in a list, just without location-based inference working
-// for that specific stop.
-  static Future<List<ItineraryStop>> resolveStops(List<ItineraryStop> stops) async {
+  // database, filling in poiId/lat/long where a confident match is found.
+  // Stops that can't be matched are kept as-is (unresolved), so the app can
+  // still show them in a list, just without location-based inference working
+  // for that specific stop.
+  static Future<List<ItineraryStop>> resolveStops(
+    List<ItineraryStop> stops,
+  ) async {
     final poiService = PoiService();
     final resolved = <ItineraryStop>[];
 

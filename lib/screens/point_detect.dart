@@ -1,4 +1,4 @@
-// point_detect_screen.dart — screen 3: live compass + auto POI detection + playback
+// point_detect.dart — screen 3: live compass + auto POI detection + playback
 import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
@@ -8,12 +8,12 @@ import '../core/constants/app_colors.dart';
 import '../core/settings/app_settings.dart';
 import '../models/poi.dart';
 import '../services/matching_engine.dart';
-import '../services/poi_service.dart';
-import '../services/sensor_service.dart';
-import '../services/translation_service.dart';
+import '../services/poi.dart';
+import '../services/sensor.dart';
+import '../services/translation.dart';
 import '../widgets/compass_needle.dart';
 import '../widgets/volume_button.dart';
-import 'now_playing_screen.dart';
+import 'now_playing.dart';
 
 class PointDetectScreen extends StatefulWidget {
   final String monumentId;

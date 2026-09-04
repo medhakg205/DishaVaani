@@ -1,10 +1,10 @@
-// splash_screen.dart — screen 1: intro + location/compass permission request
+// splash.dart — screen 1: intro + location/compass permission request
 import 'package:flutter/material.dart';
 
 import '../core/constants/app_colors.dart';
-import 'home_screen.dart';
-import 'interest_quiz_screen.dart';
-import 'language_select_screen.dart';
+import 'home.dart';
+import 'interest_quiz.dart';
+import 'language_select.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});

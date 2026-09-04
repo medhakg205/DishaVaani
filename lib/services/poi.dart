@@ -1,15 +1,20 @@
-// poi_service.dart — Firestore reads for POIs
+// poi.dart — Firestore reads for POIs
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/poi.dart';
 
 class PoiService {
-  final CollectionReference _poisRef = FirebaseFirestore.instance.collection('pois');
+  final CollectionReference _poisRef = FirebaseFirestore.instance.collection(
+    'pois',
+  );
 
   Future<List<Poi>> fetchAllPois() async {
     final snapshot = await _poisRef.get();
     return snapshot.docs
-        .map((doc) => Poi.fromFirestore(doc.id, doc.data() as Map<String, dynamic>))
+        .map(
+          (doc) =>
+              Poi.fromFirestore(doc.id, doc.data() as Map<String, dynamic>),
+        )
         .toList();
   }
 
@@ -24,8 +29,8 @@ class PoiService {
 
   // Add this method inside the existing PoiService class
 
-// Searches ALL POIs by name, not just nearby ones — itinerary stops can be
-// anywhere, not just where the user currently is.
+  // Searches ALL POIs by name, not just nearby ones — itinerary stops can be
+  // anywhere, not just where the user currently is.
   Future<List<Poi>> searchPoisByName(String query) async {
     if (query.trim().isEmpty) return [];
     final allPois = await fetchAllPois();
@@ -34,7 +39,5 @@ class PoiService {
         .where((poi) => poi.name.toLowerCase().contains(lowerQuery))
         .take(5)
         .toList();
-
   }
-
 }

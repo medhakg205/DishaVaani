@@ -1,4 +1,4 @@
-// now_playing_screen.dart — screen 4: current POI + live heading-ranked queue
+// now_playing.dart — screen 4: current POI + live heading-ranked queue
 import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
@@ -7,11 +7,11 @@ import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
 import '../core/settings/app_settings.dart';
 import '../models/poi.dart';
-import '../services/poi_service.dart';
-import '../services/sensor_service.dart';
-import '../services/translation_service.dart';
+import '../services/poi.dart';
+import '../services/sensor.dart';
+import '../services/translation.dart';
 import '../widgets/volume_button.dart';
-import 'manual_poi_list_screen.dart';
+import 'manual_poi_list.dart';
 
 class NowPlayingScreen extends StatefulWidget {
   final String monumentId;

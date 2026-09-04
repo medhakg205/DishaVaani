@@ -1,4 +1,4 @@
-// translation_service.dart — fetches translated narration audio from backend
+// translation.dart — fetches translated narration audio from backend
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;

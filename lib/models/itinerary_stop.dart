@@ -1,9 +1,10 @@
 import 'poi.dart';
+
 class ItineraryStop {
   final String? poiId;
   final String? monumentId;
   final String placeName;
-  final double? lat;  // NEW — filled in once matched to a real POI
+  final double? lat; // NEW — filled in once matched to a real POI
   final double? long; // NEW
   final DateTime date;
   final String startTime;

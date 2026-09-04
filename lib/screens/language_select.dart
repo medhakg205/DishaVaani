@@ -1,4 +1,4 @@
-// language_select_screen.dart — narration language picker
+// language_select.dart — narration language picker
 import 'package:flutter/material.dart';
 
 import '../core/constants/app_colors.dart';
@@ -39,14 +39,20 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.maroon,
         elevation: 4,
-        title: const Text('Choose Language', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Choose Language',
+          style: TextStyle(color: Colors.white),
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Select your preferred narration language', style: TextStyle(fontSize: 13, color: Colors.black54)),
+            const Text(
+              'Select your preferred narration language',
+              style: TextStyle(fontSize: 13, color: Colors.black54),
+            ),
             const SizedBox(height: 16),
             Expanded(
               child: ListView.separated(
@@ -57,7 +63,8 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                   final bool isSelected = selectedLanguageCode == lang['code'];
 
                   return InkWell(
-                    onTap: () => setState(() => selectedLanguageCode = lang['code']!),
+                    onTap: () =>
+                        setState(() => selectedLanguageCode = lang['code']!),
                     borderRadius: BorderRadius.circular(10),
                     child: Container(
                       padding: const EdgeInsets.all(14),
@@ -65,7 +72,9 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: isSelected ? AppColors.terracotta : Colors.black12,
+                          color: isSelected
+                              ? AppColors.terracotta
+                              : Colors.black12,
                           width: isSelected ? 2 : 1,
                         ),
                       ),
@@ -75,15 +84,29 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(lang['name']!, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                Text(lang['native']!, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                                Text(
+                                  lang['name']!,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  lang['native']!,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.black54,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
                           if (isSelected)
                             const Padding(
                               padding: EdgeInsets.only(left: 8),
-                              child: Icon(Icons.check_circle, color: AppColors.terracotta),
+                              child: Icon(
+                                Icons.check_circle,
+                                color: AppColors.terracotta,
+                              ),
                             ),
                         ],
                       ),
@@ -100,7 +123,9 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
                   backgroundColor: AppColors.maroon,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 onPressed: () {
                   AppSettings.selectedLanguage = selectedLanguageCode;

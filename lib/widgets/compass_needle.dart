@@ -13,7 +13,11 @@ class CompassLabel extends StatelessWidget {
       padding: const EdgeInsets.all(4),
       child: Text(
         label,
-        style: const TextStyle(fontSize: 15, color: Colors.black45, fontWeight: FontWeight.w600),
+        style: const TextStyle(
+          fontSize: 15,
+          color: Colors.black45,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -25,7 +29,11 @@ class CompassNeedle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(width: size, height: size, child: CustomPaint(painter: _NeedlePainter()));
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(painter: _NeedlePainter()),
+    );
   }
 }
 
