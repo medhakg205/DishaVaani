@@ -3,7 +3,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-
+import 'screens/interest_quiz.dart';
 import 'app_settings.dart';
 import 'firebase_options.dart';
 import 'matching_engine.dart';
@@ -80,10 +80,24 @@ class _SplashScreenState extends State<SplashScreen> {
     }
 
     if (!context.mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
-    );
+
+final completed = await Navigator.push<bool>(
+  context,
+  MaterialPageRoute(
+    builder: (_) => const InterestQuizScreen(),
+  ),
+);
+
+if (!mounted) return;
+
+if (completed == true) {
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(
+      builder: (_) => const HomeScreen(),
+    ),
+  );
+}
   }
 
   @override
@@ -235,7 +249,7 @@ class _LanguageSelectScreenState extends State<LanguageSelectScreen> {
             Expanded(
               child: ListView.separated(
                 itemCount: languages.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final lang = languages[index];
                   final bool isSelected = selectedLanguageCode == lang['code'];
@@ -385,7 +399,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Container(
               height: 180,
               decoration: BoxDecoration(
-                color: gold.withOpacity(0.25),
+                color: gold.withValues(alpha: 0.25),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Center(
@@ -820,7 +834,7 @@ if (audioUrl == null || audioUrl.trim().isEmpty) {
               margin: const EdgeInsets.symmetric(horizontal: 16),
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
               decoration: BoxDecoration(
-                color: topPoi != null ? terracotta.withOpacity(0.12) : Colors.black.withOpacity(0.05),
+                color: topPoi != null ? terracotta.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -912,7 +926,7 @@ if (audioUrl == null || audioUrl.trim().isEmpty) {
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(
-                      color: gold.withOpacity(0.3),
+                      color: gold.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Icon(
@@ -1220,7 +1234,7 @@ class _VolumeButtonState extends State<_VolumeButton> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: terracotta.withOpacity(0.4)),
+                  border: Border.all(color: terracotta.withValues(alpha: 0.4)),
                   boxShadow: const [
                     BoxShadow(
                       color: Colors.black26,
@@ -1647,7 +1661,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   ? const Center(child: Text('No other POIs are currently in the queue.'))
                   : ListView.separated(
                       itemCount: queue.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      separatorBuilder: (_, _) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final queuedPoi = queue[index];
                         final bearing = _virtualBearing(
@@ -1662,7 +1676,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           child: Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: index == 0 ? gold.withOpacity(0.18) : Colors.white,
+                              color: index == 0 ? gold.withValues(alpha: 0.18) : Colors.white,
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
                                 color: index == 0 ? terracotta : Colors.black12,
@@ -1768,7 +1782,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: gold.withOpacity(0.3),
+                  color: gold.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
@@ -2003,7 +2017,7 @@ class _ManualPoiListScreenState extends State<ManualPoiListScreen> {
                     )
                   : ListView.separated(
                       itemCount: filteredPois.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      separatorBuilder: (_, _) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final poi = filteredPois[index];
 
