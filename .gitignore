@@ -52,6 +52,10 @@ lib/firebase_options.dart
 .dart_tool/
 build/
 
-# Antigravity/Gemini AI tools and skills configurations
+functions/.env
+.env
+
+/venv/
+
 .agents/
 skills-lock.json

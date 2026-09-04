@@ -27,4 +27,20 @@ class PoiService {
         .where((poi) => poi.monumentId.toLowerCase() == normalizedMonumentId)
         .toList();
   }
+
+  // Add this method inside the existing PoiService class
+
+// Searches ALL POIs by name, not just nearby ones — itinerary stops can be
+// anywhere, not just where the user currently is.
+  Future<List<Poi>> searchPoisByName(String query) async {
+    if (query.trim().isEmpty) return [];
+    final allPois = await fetchAllPois();
+    final lowerQuery = query.trim().toLowerCase();
+    return allPois
+        .where((poi) => poi.name.toLowerCase().contains(lowerQuery))
+        .take(5)
+        .toList();
+
+  }
+
 }
