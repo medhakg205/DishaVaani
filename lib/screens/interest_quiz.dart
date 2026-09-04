@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../models/interest_profile.dart';
+import '../services/profile_store.dart';
 const Color maroon = Color(0xFF6B2737);
 const Color terracotta = Color(0xFFC1652F);
 const Color gold = Color(0xFFD4A24E);
@@ -346,6 +348,7 @@ for (final questionAnswers in selectedAnswers) {
 
   Future<void> finishQuiz() async {
     calculateScores();
+    await ProfileStore().saveInitialProfile(InterestProfile(scores)); //new
 
     final result = await showDialog<bool>(
       context: context,
