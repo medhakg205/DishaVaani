@@ -1,3 +1,4 @@
+# standalone_server.py — Flask server (Render deployment) mirroring the Cloud Function
 import json
 import os
 import tempfile
@@ -7,11 +8,9 @@ import requests
 from deep_translator import GoogleTranslator
 from firebase_admin import credentials, firestore
 from flask import Flask, jsonify, request
-from gtts import gTTS
 from flask_cors import CORS
+from gtts import gTTS
 
-# --- Firebase setup using an explicit service account (needed since we're
-# running outside Google's infrastructure, on Render) ---
 cred_dict = json.loads(os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON"))
 cred = credentials.Certificate(cred_dict)
 firebase_admin.initialize_app(cred, options={"projectId": "dishavaani-db373"})
@@ -21,8 +20,7 @@ CORS(app)
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
-BUCKET_NAME = "Audio"  # matches your real Supabase bucket name
-
+BUCKET_NAME = "audio"  # matches main.py — both now point to the same Supabase bucket
 
 @app.route("/generate_regional_audio", methods=["POST"])
 def generate_regional_audio():
@@ -67,18 +65,20 @@ def generate_regional_audio():
     storage_path = f"tts_cached/{file_name}"
     upload_endpoint = f"{SUPABASE_URL}/storage/v1/object/{BUCKET_NAME}/{storage_path}"
 
-    with open(local_audio_path, "rb") as audio_file:
-        upload_response = requests.post(
-            upload_endpoint,
-            headers={
-                "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
-                "Content-Type": "audio/mpeg",
-                "x-upsert": "true",
-            },
-            data=audio_file.read(),
-        )
-
-    os.remove(local_audio_path)
+    try:
+        with open(local_audio_path, "rb") as audio_file:
+            upload_response = requests.post(
+                upload_endpoint,
+                headers={
+                    "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+                    "Content-Type": "audio/mpeg",
+                    "x-upsert": "true",
+                },
+                data=audio_file.read(),
+                timeout=30,  # BUG FIX: no timeout previously
+            )
+    finally:
+        os.remove(local_audio_path)  # BUG FIX: previously only removed on success path
 
     if upload_response.status_code not in (200, 201):
         return jsonify({"error": f"Supabase upload failed: {upload_response.text}"}), 500

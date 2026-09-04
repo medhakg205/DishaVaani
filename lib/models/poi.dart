@@ -1,4 +1,4 @@
-//basic class structure for each poi, final means cant be changed
+// poi.dart — POI data model
 class Poi {
   final String id;
   final String monumentId;
