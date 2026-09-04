@@ -82,7 +82,8 @@ double bearingDifference(
   double heading,
   double bearing,
 ) {
-  double difference = (bearing - heading).abs();
+  final double frontHeading = (heading + 180) % 360;
+  double difference = (bearing - frontHeading).abs();
 
   if (difference > 180) {
     difference = 360 - difference;
