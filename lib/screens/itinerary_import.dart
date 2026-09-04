@@ -64,10 +64,9 @@ class _ItineraryImportScreenState extends State<ItineraryImportScreen> {
       );
       Navigator.pop(context);
     } catch (e) {
-      setState(
-        () => _errorMessage =
-            'Could not read that itinerary. Try a clearer photo or PDF.',
-      );
+      // TEMPORARY — showing the real error while debugging. Revert to the
+      // friendly message once this is working.
+      setState(() => _errorMessage = 'DEBUG: $e');
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }
