@@ -9,7 +9,7 @@
         }
       },
       "dart": {
-        "lib/firebase_options.dart": {
+        "lib/core/config/firebase_options.dart": {
           "projectId": "dishavaani-db373",
           "configurations": {
             "android": "1:430937452151:android:d074954f18a01f174e6072",

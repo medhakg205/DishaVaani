@@ -1,4 +1,3 @@
-
 firebase-admin
 gTTS
 deep-translator
@@ -6,3 +5,6 @@ requests
 flask
 gunicorn
 flask-cors
+google-genai
+python-dotenv
+google-generativeai

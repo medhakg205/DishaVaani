@@ -1,4 +1,4 @@
-//basic class structure for each poi, final means cant be changed
+// poi.dart — POI data model
 class Poi {
   final String id;
   final String monumentId;
@@ -23,12 +23,16 @@ class Poi {
   factory Poi.fromFirestore(String id, Map<String, dynamic> data) {
     final rawAudioUrls = data['audioUrls'] as Map<dynamic, dynamic>?;
     final Map<String, String> audioUrlsMap = rawAudioUrls != null
-        ? rawAudioUrls.map((key, value) => MapEntry(key.toString(), value.toString()))
-        : const {};
+        ? rawAudioUrls.map(
+            (key, value) => MapEntry(key.toString(), value.toString()),
+          )
+        : {};
 
     final rawScripts = data['scripts'] as Map<dynamic, dynamic>?;
     final Map<String, String> scriptsMap = rawScripts != null
-        ? rawScripts.map((key, value) => MapEntry(key.toString(), value.toString()))
+        ? rawScripts.map(
+            (key, value) => MapEntry(key.toString(), value.toString()),
+          )
         : const {};
 
     return Poi(

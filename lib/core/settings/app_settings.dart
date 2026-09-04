@@ -1,5 +1,7 @@
+// app_settings.dart — global settings (selected language) + language code map
 class AppSettings {
   static String selectedLanguage = 'en';
+  static Map<String, double> interestProfile = {};
 }
 
 const Map<String, String> languageCodes = {
