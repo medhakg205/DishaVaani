@@ -11,6 +11,9 @@ import 'models/poi.dart';
 import 'sensor_service.dart';
 import 'services/poi_service.dart';
 import 'services/translation_service.dart';
+import 'screen/itinerary_import_screen.dart';
+import 'services/itinerary_service.dart';
+import 'logic/current_stop_inference.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -319,6 +322,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, int> monumentPoiCounts = {};
   String? selectedMonumentId;
 
+  InferredStop? _inferredStop;
+
   @override
   void initState() {
     super.initState();
@@ -350,6 +355,7 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedMonumentId = poiCounts.isNotEmpty ? poiCounts.keys.first : null;
         isLoading = false;
       });
+      _checkItinerary();
     } catch (error) {
       if (!mounted) return;
 
@@ -357,6 +363,28 @@ class _HomeScreenState extends State<HomeScreen> {
         errorMessage = error.toString();
         isLoading = false;
       });
+    }
+  }
+    Future<void> _checkItinerary() async {
+    try {
+      final stops = await ItineraryService.loadStops();
+      if (stops.isEmpty) return;
+
+      final position = await Geolocator.getCurrentPosition();
+
+      final match = inferCurrentStop(
+        stops: stops,
+        now: DateTime.now(),
+        userLat: position.latitude,
+        userLong: position.longitude,
+        distanceCalculator: Geolocator.distanceBetween,
+        timeBufferMinutes: 15,
+      );
+
+      if (!mounted || match == null) return;
+      setState(() => _inferredStop = match);
+    } catch (_) {
+      // silent — falls back to normal manual pick, per the "no match" decision
     }
   }
 
@@ -396,6 +424,64 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ItineraryImportScreen()),
+                );
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Icon(Icons.map_outlined, size: 14, color: terracotta),
+                    SizedBox(width: 6),
+                    Text('Import an itinerary', style: TextStyle(fontSize: 12, color: terracotta, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            ),
+            if (_inferredStop != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: InkWell(
+                  onTap: () {
+                    final stop = _inferredStop!.stop;
+                    if (stop.monumentId == null) return;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PointDetectScreen(monumentId: stop.monumentId!),
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: gold.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: terracotta),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.explore, color: terracotta, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'You\'re likely at ${_inferredStop!.stop.placeName} — tap to start listening',
+                            style: const TextStyle(fontSize: 12, color: maroon, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             const SizedBox(height: 20),
             const Text(
               'NEARBY MONUMENTS',

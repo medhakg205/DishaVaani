@@ -7,6 +7,10 @@ from deep_translator import GoogleTranslator
 from firebase_admin import firestore
 from firebase_functions import https_fn, options
 from gtts import gTTS
+import json
+import mimetypes
+
+import google.generativeai as genai
 
 firebase_admin.initialize_app(options={'projectId': 'dishavaani-db373'})
 
@@ -111,3 +115,61 @@ def generate_regional_audio(req: https_fn.Request) -> https_fn.Response:
 
     # --- 7. Return the URL to the app ---
     return https_fn.Response({"audioUrl": public_audio_url}, status=200)
+
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+
+
+@https_fn.on_request()
+def parse_itinerary(req: https_fn.Request) -> https_fn.Response:
+    if not GEMINI_API_KEY:
+        return https_fn.Response("Server misconfigured: missing Gemini API key", status=500)
+
+    uploaded_file = req.files.get("file")
+    if not uploaded_file:
+        return https_fn.Response("Missing uploaded file", status=400)
+
+    file_bytes = uploaded_file.read()
+    mime_type = uploaded_file.mimetype or mimetypes.guess_type(uploaded_file.filename)[0]
+
+    if not mime_type:
+        return https_fn.Response("Could not determine file type", status=400)
+
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel("gemini-1.5-flash")
+
+    prompt = (
+        "Extract every planned visit from this travel itinerary. "
+        "Return ONLY a JSON array, no other text, no markdown formatting. "
+        "Each item must have exactly these fields: "
+        "\"placeName\" (string), \"date\" (YYYY-MM-DD), "
+        "\"startTime\" (HH:mm, 24-hour), \"endTime\" (HH:mm, 24-hour). "
+        "If a specific time isn't given, make a reasonable estimate based on context. "
+        "If a date isn't given, use today's date."
+    )
+
+    try:
+        response = model.generate_content([
+            prompt,
+            {"mime_type": mime_type, "data": file_bytes},
+        ])
+    except Exception as e:
+        return https_fn.Response(f"Gemini request failed: {str(e)}", status=500)
+
+    raw_text = response.text.strip()
+
+    # Gemini sometimes wraps JSON in markdown code fences despite instructions —
+    # strip those if present before parsing.
+    if raw_text.startswith("```"):
+        raw_text = raw_text.strip("`")
+        if raw_text.startswith("json"):
+            raw_text = raw_text[4:].strip()
+
+    try:
+        stops = json.loads(raw_text)
+    except Exception:
+        return https_fn.Response(
+            f"Could not parse Gemini's response as JSON: {raw_text[:200]}", status=500
+        )
+
+    return https_fn.Response(json.dumps({"stops": stops}), status=200, content_type="application/json")
