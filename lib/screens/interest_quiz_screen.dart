@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+
+import '../core/settings/app_settings.dart';
+
 const Color maroon = Color(0xFF6B2737);
 const Color terracotta = Color(0xFFC1652F);
 const Color gold = Color(0xFFD4A24E);
@@ -36,15 +39,13 @@ class _InterestQuizScreenState extends State<InterestQuizScreen> {
 
   final List<Map<String, dynamic>> questions = [
     {
-      'question':
-          'What interests you most when exploring a new place?',
+      'question': 'What interests you most when exploring a new place?',
       'answers': [
         {
           'text': 'Architecture & monuments',
           'category': 'architecture',
           'icon': Icons.account_balance,
-          'image':
-              'https://images.unsplash.com/photo-1548013146-72479768bada',
+          'image': 'https://images.unsplash.com/photo-1548013146-72479768bada',
         },
         {
           'text': 'Historical stories',
@@ -64,22 +65,19 @@ class _InterestQuizScreenState extends State<InterestQuizScreen> {
           'text': 'Markets & local crafts',
           'category': 'shopping',
           'icon': Icons.storefront,
-          'image':
-              'https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a',
+          'image': 'https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a',
         },
         {
           'text': 'Art & culture',
           'category': 'art',
           'icon': Icons.palette,
-          'image':
-              'https://images.unsplash.com/photo-1561214115-f2f134cc4912',
+          'image': 'https://images.unsplash.com/photo-1561214115-f2f134cc4912',
         },
       ],
     },
 
     {
-      'question':
-          'What kind of history would you love to discover?',
+      'question': 'What kind of history would you love to discover?',
       'answers': [
         {
           'text': 'Battles & warriors',
@@ -99,8 +97,7 @@ class _InterestQuizScreenState extends State<InterestQuizScreen> {
           'text': 'Religious traditions',
           'category': 'religion',
           'icon': Icons.temple_hindu,
-          'image':
-              'https://images.unsplash.com/photo-1514222134-b57cbb8ce073',
+          'image': 'https://images.unsplash.com/photo-1514222134-b57cbb8ce073',
         },
         {
           'text': 'Everyday life',
@@ -120,8 +117,7 @@ class _InterestQuizScreenState extends State<InterestQuizScreen> {
     },
 
     {
-      'question':
-          'What would you notice first at a monument?',
+      'question': 'What would you notice first at a monument?',
       'answers': [
         {
           'text': 'Design & construction',
@@ -155,15 +151,13 @@ class _InterestQuizScreenState extends State<InterestQuizScreen> {
           'text': 'Art & decoration',
           'category': 'art',
           'icon': Icons.palette,
-          'image':
-              'https://images.unsplash.com/photo-1549490349-8643362247b5',
+          'image': 'https://images.unsplash.com/photo-1549490349-8643362247b5',
         },
       ],
     },
 
     {
-      'question':
-          'What would you rather experience during a trip?',
+      'question': 'What would you rather experience during a trip?',
       'answers': [
         {
           'text': 'Local cuisine',
@@ -204,8 +198,7 @@ class _InterestQuizScreenState extends State<InterestQuizScreen> {
     },
 
     {
-      'question':
-          'Which story would you most likely listen to?',
+      'question': 'Which story would you most likely listen to?',
       'answers': [
         {
           'text': 'A famous battle',
@@ -225,8 +218,7 @@ class _InterestQuizScreenState extends State<InterestQuizScreen> {
           'text': 'Beliefs behind a monument',
           'category': 'religion',
           'icon': Icons.temple_hindu,
-          'image':
-              'https://images.unsplash.com/photo-1514222134-b57cbb8ce073',
+          'image': 'https://images.unsplash.com/photo-1514222134-b57cbb8ce073',
         },
         {
           'text': 'How ordinary people lived',
@@ -292,6 +284,8 @@ class _InterestQuizScreenState extends State<InterestQuizScreen> {
     for (final key in scores.keys) {
       scores[key] = scores[key]! / questions.length;
     }
+
+    AppSettings.interestProfile = Map<String, double>.from(scores);
   }
 
   String getTopInterest() {
@@ -363,11 +357,7 @@ class _InterestQuizScreenState extends State<InterestQuizScreen> {
                     color: sandstone,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.auto_awesome,
-                    color: gold,
-                    size: 36,
-                  ),
+                  child: const Icon(Icons.auto_awesome, color: gold, size: 36),
                 ),
 
                 const SizedBox(height: 22),
@@ -409,11 +399,7 @@ class _InterestQuizScreenState extends State<InterestQuizScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.favorite,
-                        color: terracotta,
-                        size: 25,
-                      ),
+                      const Icon(Icons.favorite, color: terracotta, size: 25),
                       const SizedBox(width: 14),
                       Expanded(
                         child: Text(
@@ -476,8 +462,7 @@ class _InterestQuizScreenState extends State<InterestQuizScreen> {
     final question = questions[currentQuestion];
     final answers = question['answers'] as List;
 
-    final progress =
-        (currentQuestion + 1) / questions.length;
+    final progress = (currentQuestion + 1) / questions.length;
 
     return Scaffold(
       backgroundColor: sandstone,
@@ -533,10 +518,7 @@ class _InterestQuizScreenState extends State<InterestQuizScreen> {
                   minHeight: 11,
                   value: progress,
                   backgroundColor: Colors.black12,
-                  valueColor:
-                      const AlwaysStoppedAnimation<Color>(
-                    terracotta,
-                  ),
+                  valueColor: const AlwaysStoppedAnimation<Color>(terracotta),
                 ),
               ),
             ),
@@ -546,15 +528,9 @@ class _InterestQuizScreenState extends State<InterestQuizScreen> {
             // -------------------------------------------------
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(
-                  20,
-                  55,
-                  20,
-                  20,
-                ),
+                padding: const EdgeInsets.fromLTRB(20, 55, 20, 20),
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
                       'TUNING YOUR EXPERIENCE',
@@ -587,37 +563,32 @@ class _InterestQuizScreenState extends State<InterestQuizScreen> {
                     // -------------------------------------------------
                     GridView.builder(
                       shrinkWrap: true,
-                      physics:
-                          const NeverScrollableScrollPhysics(),
+                      physics: const NeverScrollableScrollPhysics(),
                       itemCount: answers.length,
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                        childAspectRatio: 0.78,
-                      ),
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                            childAspectRatio: 0.78,
+                          ),
                       itemBuilder: (context, index) {
                         final answer = answers[index];
 
-                        final String category =
-                            answer['category'];
+                        final String category = answer['category'];
 
                         final bool isSelected =
-                            selectedAnswers[currentQuestion] ==
-                                category;
+                            selectedAnswers[currentQuestion] == category;
 
                         return GestureDetector(
                           onTap: () {
                             selectAnswer(category);
                           },
                           child: AnimatedContainer(
-                            duration:
-                                const Duration(milliseconds: 220),
+                            duration: const Duration(milliseconds: 220),
                             curve: Curves.easeOut,
                             decoration: BoxDecoration(
-                              borderRadius:
-                                  BorderRadius.circular(26),
+                              borderRadius: BorderRadius.circular(26),
                               border: Border.all(
                                 color: isSelected
                                     ? terracotta
@@ -629,61 +600,60 @@ class _InterestQuizScreenState extends State<InterestQuizScreen> {
                                   color: Colors.black.withOpacity(
                                     isSelected ? 0.18 : 0.08,
                                   ),
-                                  blurRadius:
-                                      isSelected ? 12 : 7,
+                                  blurRadius: isSelected ? 12 : 7,
                                   offset: const Offset(0, 4),
                                 ),
                               ],
                             ),
                             child: ClipRRect(
-                              borderRadius:
-                                  BorderRadius.circular(23),
+                              borderRadius: BorderRadius.circular(23),
                               child: Stack(
                                 fit: StackFit.expand,
                                 children: [
                                   // IMAGE
-CachedNetworkImage(
-  imageUrl: answer['image'],
-  fit: BoxFit.cover,
-  fadeInDuration: const Duration(milliseconds: 300),
-  fadeOutDuration: const Duration(milliseconds: 100),
+                                  CachedNetworkImage(
+                                    imageUrl: answer['image'],
+                                    fit: BoxFit.cover,
+                                    fadeInDuration: const Duration(
+                                      milliseconds: 300,
+                                    ),
+                                    fadeOutDuration: const Duration(
+                                      milliseconds: 100,
+                                    ),
 
-placeholder: (context, url) {
-  return Container(
-    decoration: const BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          sandstone,
-          Color(0xFFDED8CF),
-        ],
-      ),
-    ),
-  );
-},
+                                    placeholder: (context, url) {
+                                      return Container(
+                                        decoration: const BoxDecoration(
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topCenter,
+                                            end: Alignment.bottomCenter,
+                                            colors: [
+                                              sandstone,
+                                              Color(0xFFDED8CF),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    },
 
-  errorWidget: (context, url, error) {
-    return Container(
-      color: maroon,
-      child: Icon(
-        answer['icon'],
-        color: Colors.white,
-        size: 60,
-      ),
-    );
-  },
-),
+                                    errorWidget: (context, url, error) {
+                                      return Container(
+                                        color: maroon,
+                                        child: Icon(
+                                          answer['icon'],
+                                          color: Colors.white,
+                                          size: 60,
+                                        ),
+                                      );
+                                    },
+                                  ),
 
                                   // DARK GRADIENT
                                   Container(
-                                    decoration:
-                                        const BoxDecoration(
+                                    decoration: const BoxDecoration(
                                       gradient: LinearGradient(
-                                        begin:
-                                            Alignment.topCenter,
-                                        end:
-                                            Alignment.bottomCenter,
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
                                         colors: [
                                           Colors.transparent,
                                           Colors.black87,
@@ -698,8 +668,7 @@ placeholder: (context, url) {
                                     top: 12,
                                     right: 12,
                                     child: AnimatedContainer(
-                                      duration:
-                                          const Duration(
+                                      duration: const Duration(
                                         milliseconds: 180,
                                       ),
                                       width: 48,
@@ -735,8 +704,7 @@ placeholder: (context, url) {
                                         fontFamily: 'serif',
                                         fontSize: 18,
                                         height: 1.05,
-                                        fontWeight:
-                                            FontWeight.bold,
+                                        fontWeight: FontWeight.bold,
                                         color: Colors.white,
                                       ),
                                     ),
@@ -770,24 +738,17 @@ placeholder: (context, url) {
             // NEXT BUTTON
             // -------------------------------------------------
             Padding(
-              padding: const EdgeInsets.fromLTRB(
-                20,
-                8,
-                20,
-                20,
-              ),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
               child: SizedBox(
                 width: double.infinity,
                 height: 58,
                 child: ElevatedButton(
-                  onPressed:
-                      selectedAnswers[currentQuestion] == null
-                          ? null
-                          : nextQuestion,
+                  onPressed: selectedAnswers[currentQuestion] == null
+                      ? null
+                      : nextQuestion,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: maroon,
-                    disabledBackgroundColor:
-                        Colors.black12,
+                    disabledBackgroundColor: Colors.black12,
                     foregroundColor: Colors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
@@ -795,10 +756,7 @@ placeholder: (context, url) {
                     ),
                   ),
                   child: Text(
-                    currentQuestion ==
-                            questions.length - 1
-                        ? 'FINISH'
-                        : 'NEXT',
+                    currentQuestion == questions.length - 1 ? 'FINISH' : 'NEXT',
                     style: const TextStyle(
                       fontFamily: 'serif',
                       fontSize: 17,

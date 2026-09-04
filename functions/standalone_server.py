@@ -23,14 +23,20 @@ CORS(app)
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
-BUCKET_NAME = "Audio"  # matches your real Supabase bucket name
 gemini_client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 def personalize_script(base_script: str, interest_profile: dict) -> str:
     if not interest_profile:
         return base_script  # no profile provided, skip personalization
 
-    top_interests = sorted(interest_profile, key=interest_profile.get, reverse=True)[:2]
+    top_interests = [
+        interest for interest, score in sorted(
+            interest_profile.items(), key=lambda item: item[1], reverse=True
+        )[:2]
+        if score > 0
+    ]
+    if not top_interests:
+        return base_script
     prompt = (
         f"Rewrite this monument description to emphasize {', '.join(top_interests)}, "
         f"while keeping all these facts accurate: {base_script} "

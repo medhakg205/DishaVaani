@@ -9,7 +9,6 @@ from deep_translator import GoogleTranslator
 from firebase_admin import firestore
 from firebase_functions import https_fn
 from gtts import gTTS
-import json
 import mimetypes
 
 import google.generativeai as genai
@@ -102,7 +101,7 @@ def generate_regional_audio(req: https_fn.Request) -> https_fn.Response:
     })
 
     # --- 7. Return the URL to the app ---
-    return https_fn.Response({"audioUrl": public_audio_url}, status=200)
+    return _json_response({"audioUrl": public_audio_url}, 200)
 
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")

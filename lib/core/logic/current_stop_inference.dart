@@ -1,4 +1,4 @@
-import '../models/itinerary_stop.dart';
+import '../../models/itinerary_stop.dart';
 
 class InferredStop {
   final ItineraryStop stop;
