@@ -40,4 +40,30 @@ class PoiService {
         .take(5)
         .toList();
   }
+  // Searches the monuments collection by display name (e.g. "Qutub Minar"),
+// converting each monument's snake_case document ID the same way Home
+// screen does, since monuments don't store a separate display-name field.
+Future<Map<String, dynamic>?> findMonumentByName(String query) async {
+  final snapshot = await FirebaseFirestore.instance.collection('monuments').get();
+  final lowerQuery = query.trim().toLowerCase();
+
+  for (final doc in snapshot.docs) {
+    final displayName = doc.id
+        .replaceAll('_', ' ')
+        .split(' ')
+        .where((w) => w.isNotEmpty)
+        .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+        .join(' ');
+
+    if (displayName.toLowerCase() == lowerQuery) {
+      final data = doc.data();
+      return {
+        'monumentId': doc.id,
+        'lat': data['lat'],
+        'long': data['long'],
+      };
+    }
+  }
+  return null;
+}
 }

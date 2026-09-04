@@ -93,28 +93,26 @@ class ItineraryService {
         .map((s) => ItineraryStop.fromFirestore(s as Map<String, dynamic>))
         .toList();
   }
-
-  // Matches each parsed stop's plain-text place name against the real POI
-  // database, filling in poiId/lat/long where a confident match is found.
-  // Stops that can't be matched are kept as-is (unresolved), so the app can
-  // still show them in a list, just without location-based inference working
-  // for that specific stop.
-  static Future<List<ItineraryStop>> resolveStops(
-    List<ItineraryStop> stops,
-  ) async {
+  static Future<List<ItineraryStop>> resolveStops(List<ItineraryStop> stops) async {
     final poiService = PoiService();
     final resolved = <ItineraryStop>[];
-
     for (final stop in stops) {
-      final matches = await poiService.searchPoisByName(stop.placeName);
-
-      if (matches.isNotEmpty) {
-        resolved.add(stop.copyWithMatch(matches.first));
+      final match = await poiService.findMonumentByName(stop.placeName);
+      if (match != null) {
+        resolved.add(ItineraryStop(
+          poiId: null, // no specific POI, just the monument itself
+          monumentId: match['monumentId'] as String,
+          placeName: stop.placeName,
+          lat: (match['lat'] as num?)?.toDouble(),
+          long: (match['long'] as num?)?.toDouble(),
+          date: stop.date,
+          startTime: stop.startTime,
+          endTime: stop.endTime,
+        ));
       } else {
         resolved.add(stop); // no match found, keep unresolved
-      }
     }
-
-    return resolved;
+  }
+  return resolved;
   }
 }
