@@ -59,3 +59,4 @@ functions/.env
 
 .agents/
 skills-lock.json
+lib/services/secrets.dart

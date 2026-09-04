@@ -2,36 +2,67 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:http/http.dart' as http;
+import 'package:google_generative_ai/google_generative_ai.dart';
 
 import 'poi.dart';
 import '../models/itinerary_stop.dart';
 import 'device_identity.dart';
+import 'secrets.dart';
 
 class ItineraryService {
   static final CollectionReference _itinerariesRef = FirebaseFirestore.instance
       .collection('itineraries');
 
-  // TODO: point this at your actual backend once the parsing endpoint
-  // exists — see note below about who builds this.
-  static const String _parseEndpoint =
-      'https://YOUR-BACKEND-URL/parse_itinerary';
+  // TEMPORARY: calling Gemini directly from the app, bypassing the Firebase
+  // Functions backend entirely — that path is blocked on billing being
+  // enabled on the project. This trades a small security downside (the
+  // API key ships inside the app) for actually being able to build and
+  // test the feature. Worth moving back to a real backend once billing
+  // is sorted.
+  static const String _geminiApiKey = geminiApiKey; // imported from secrets.dart, never committed
 
-  /// Sends the uploaded file to the backend, which uses Gemini to extract
-  /// structured stops from it. Returns the parsed list, not yet saved.
+  /// Sends the uploaded file directly to Gemini and parses the structured
+  /// stops out of the response.
   static Future<List<ItineraryStop>> parseItineraryFile(File file) async {
-    final request = http.MultipartRequest('POST', Uri.parse(_parseEndpoint));
-    request.files.add(await http.MultipartFile.fromPath('file', file.path));
+    final extension = file.path.split('.').last.toLowerCase();
+    final mimeType = switch (extension) {
+      'pdf' => 'application/pdf',
+      'png' => 'image/png',
+      'jpg' || 'jpeg' => 'image/jpeg',
+      _ => throw Exception('Unsupported file type: $extension'),
+    };
 
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
+    final fileBytes = await file.readAsBytes();
 
-    if (response.statusCode != 200) {
-      throw Exception('Backend returned ${response.statusCode}');
+    final model = GenerativeModel(
+      model: 'gemini-1.5-flash',
+      apiKey: _geminiApiKey,
+    );
+
+    final prompt = TextPart(
+      'Extract every planned visit from this travel itinerary. '
+      'Return ONLY a JSON array, no other text, no markdown formatting. '
+      'Each item must have exactly these fields: '
+      '"placeName" (string), "date" (YYYY-MM-DD), '
+      '"startTime" (HH:mm, 24-hour), "endTime" (HH:mm, 24-hour). '
+      'If a specific time isn\'t given, make a reasonable estimate based on context. '
+      'If a date isn\'t given, use today\'s date.',
+    );
+
+    final filePart = DataPart(mimeType, fileBytes);
+
+    final response = await model.generateContent([
+      Content.multi([prompt, filePart]),
+    ]);
+
+    var rawText = (response.text ?? '').trim();
+
+    // Gemini sometimes wraps JSON in markdown code fences despite instructions.
+    if (rawText.startsWith('```')) {
+      rawText = rawText.replaceAll('```json', '').replaceAll('```', '').trim();
     }
 
-    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-    final stopsJson = decoded['stops'] as List<dynamic>;
+    final stopsJson = jsonDecode(rawText) as List<dynamic>;
 
     return stopsJson
         .map((s) => ItineraryStop.fromJson(s as Map<String, dynamic>))

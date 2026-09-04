@@ -31,6 +31,13 @@ class _ItineraryImportScreenState extends State<ItineraryImportScreen> {
     if (files.isEmpty || files.first.path == null) return;
 
     final file = File(files.first.path!);
+
+    final fileSizeInMB = await file.length() / (1024 * 1024);
+    if (fileSizeInMB > 20) {
+      setState(() => _errorMessage = 'That file is too large. Try a smaller photo or PDF (under 20MB).');
+      return;
+    }
+
     setState(() => _isUploading = true);
 
     try {
