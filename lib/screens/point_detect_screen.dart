@@ -172,7 +172,6 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
         sourceScript: englishScript,
         sourceLang: 'en',
         targetLanguage: lang,
-        interestProfile: AppSettings.interestProfile,
       );
       poi.audioUrls[lang] = newUrl;
       return newUrl;

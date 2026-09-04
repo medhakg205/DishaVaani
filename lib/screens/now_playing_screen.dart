@@ -201,7 +201,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           sourceScript: poi.getScript('en'),
           sourceLang: 'en',
           targetLanguage: AppSettings.selectedLanguage,
-          interestProfile: AppSettings.interestProfile,
         );
         poi.audioUrls[AppSettings.selectedLanguage] = audioUrl;
       } catch (e) {
@@ -233,7 +232,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           sourceScript: poi.getScript('en'),
           sourceLang: 'en',
           targetLanguage: AppSettings.selectedLanguage,
-          interestProfile: AppSettings.interestProfile,
         );
         poi.audioUrls[AppSettings.selectedLanguage] = audioUrl;
       } catch (e) {
