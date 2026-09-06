@@ -78,8 +78,11 @@ def generate_regional_audio():
 
     poi_data = doc.to_dict()
     existing_urls = poi_data.get("audioUrls", {})
-    if target_lang in existing_urls:
-        return jsonify({"audioUrl": existing_urls[target_lang]}), 200
+    if not interest_profile and target_lang in existing_urls:
+        return jsonify({
+            "audioUrl": existing_urls[target_lang],
+            "script": poi_data.get("scripts", {}).get(target_lang, source_script),
+        }), 200
 
     try:
         personalized_script = personalize_script(source_script, interest_profile)
@@ -96,7 +99,18 @@ def generate_regional_audio():
     except Exception as e:
         return jsonify({"error": f"Text-to-speech failed: {str(e)}"}), 500
 
-    file_name = f"{poi_id}_{target_lang}.mp3"
+    if interest_profile:
+        top_interests = [
+            interest for interest, score in sorted(
+                interest_profile.items(), key=lambda item: item[1], reverse=True
+            )[:2]
+            if score > 0
+        ]
+        profile_tag = "_".join(sorted(top_interests)) if top_interests else "personalized"
+        file_name = f"{poi_id}_{target_lang}_{profile_tag}.mp3"
+    else:
+        file_name = f"{poi_id}_{target_lang}.mp3"
+
     storage_path = f"tts_cached/{file_name}"
     upload_endpoint = f"{SUPABASE_URL}/storage/v1/object/{BUCKET_NAME}/{storage_path}"
 
@@ -120,12 +134,17 @@ def generate_regional_audio():
 
     public_audio_url = f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET_NAME}/{storage_path}"
 
-    doc_ref.update({
-        f"audioUrls.{target_lang}": public_audio_url,
-        f"scripts.{target_lang}": translated_text,
-    })
+    # Only update the base POI document if this is the default/unpersonalized script
+    if not interest_profile:
+        doc_ref.update({
+            f"audioUrls.{target_lang}": public_audio_url,
+            f"scripts.{target_lang}": translated_text,
+        })
 
-    return jsonify({"audioUrl": public_audio_url}), 200
+    return jsonify({
+        "audioUrl": public_audio_url,
+        "script": translated_text,
+    }), 200
 
 
 if __name__ == "__main__":
