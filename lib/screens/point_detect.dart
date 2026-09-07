@@ -14,6 +14,11 @@ import '../services/translation.dart';
 import '../widgets/compass_needle.dart';
 import '../widgets/volume_button.dart';
 import 'now_playing.dart';
+import '../services/device_identity.dart';
+import '../services/profile_store.dart';
+import '../services/scripting_settings.dart';
+import '../widgets/dynamic_scripting_toggle.dart';
+
 
 class PointDetectScreen extends StatefulWidget {
   final String monumentId;
@@ -36,6 +41,7 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
 
   final AudioPlayer _audioPlayer = AudioPlayer();
   final TranslationService _translationService = TranslationService();
+  final Map<String, String> _dynamicAudioCache = {};
   bool isPlaying = false;
   bool isResolvingAudio = false;
   bool _hasSensorPermission = false;
@@ -137,6 +143,8 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
 
       if (detectedPoi != null && detectedPoi.id != _autoPlayedPoiId) {
         _autoPlayedPoiId = detectedPoi.id;
+        final deviceId = await DeviceIdentity.getId();
+        onPoiDetected(detectedPoi.id, deviceId);
         await _togglePlayback(detectedPoi);
       }
     });
@@ -155,29 +163,62 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
 
   Future<String?> _resolveAudioUrl(Poi poi) async {
     final lang = AppSettings.selectedLanguage;
+    final isDynamic = ScriptingSettings().isDynamicScriptingEnabled;
 
-    final existingUrl = poi.audioUrls[lang];
-    if (existingUrl != null && existingUrl.trim().isNotEmpty) {
-      return existingUrl;
+    if (!isDynamic) {
+      print(
+        '[Scripting Engine] ⏸ Dynamic scripting disabled: Bypassing Gemini and serving static narration for POI: ${poi.id}',
+      );
+      final staticUrl = poi.audioUrls[lang] ?? poi.audioUrls['en'];
+      if (staticUrl != null && staticUrl.trim().isNotEmpty) {
+        return staticUrl;
+      }
+      return null;
+    }
+
+    print(
+      '[Scripting Engine] ⚡ Dynamic scripting enabled: requesting AI narration for POI: ${poi.id}',
+    );
+
+    // If dynamic audio was already generated in this session, return it from memory
+    final cacheKey = '${poi.id}_$lang';
+    if (_dynamicAudioCache.containsKey(cacheKey)) {
+      print('[Scripting Engine] 💾 Serving from in-memory session cache for $cacheKey');
+      return _dynamicAudioCache[cacheKey];
     }
 
     final englishScript = poi.getScript('en');
-    if (englishScript.isEmpty) return null;
+    if (englishScript.isEmpty) {
+      print('[Scripting Engine] ⚠️ English source script is empty for POI: ${poi.id}');
+      return null;
+    }
 
     setState(() => isResolvingAudio = true);
 
     try {
+      final profile = await ProfileStore().loadProfile();
+      final profileMap = profile.weights.isNotEmpty ? profile.toJson() : null;
+      print('[Scripting Engine] 👤 Loaded user interest profile: $profileMap');
+
       final newUrl = await _translationService.getTranslatedAudioUrl(
         poiId: poi.id,
         sourceScript: englishScript,
         sourceLang: 'en',
         targetLanguage: lang,
+        interestProfile: profileMap,
+        onScriptResolved: (script) {
+          print('[Scripting Engine] 📝 Received personalized script: $script');
+          poi.scripts[lang] = script;
+        },
       );
+      print('[Scripting Engine] ✅ Dynamic audio resolved: $newUrl');
+      _dynamicAudioCache[cacheKey] = newUrl;
       poi.audioUrls[lang] = newUrl;
       return newUrl;
     } catch (e) {
-      debugPrint('Translation call failed: $e');
-      return null;
+      print('[Scripting Engine] ❌ Translation/personalization failed: $e');
+      print('[Scripting Engine] ↩️ Falling back to static audio');
+      return poi.audioUrls[lang] ?? poi.audioUrls['en'];
     } finally {
       if (mounted) setState(() => isResolvingAudio = false);
     }
@@ -209,6 +250,9 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
       await _audioPlayer.pause();
       return;
     }
+
+    final deviceId = await DeviceIdentity.getId();
+    onPoiDetected(poi.id, deviceId);
 
     final audioUrl = await _resolveAudioUrl(poi);
     if (audioUrl == null || audioUrl.trim().isEmpty) {
@@ -304,6 +348,9 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
           onPressed: () => Navigator.popUntil(context, (r) => r.isFirst),
         ),
         title: const Text('DishaVaani', style: TextStyle(color: Colors.white)),
+        actions: const [
+          DynamicScriptingToggle(isCompact: true),
+        ],
       ),
       body: SafeArea(
         child: !_hasSensorPermission
@@ -749,5 +796,15 @@ class _SensorPermissionPrompt extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+void onPoiDetected(String poiId, String deviceId) async {
+  final useDynamicScripting = ScriptingSettings().isDynamicScriptingEnabled;
+
+  if (useDynamicScripting) {
+    print('[Scripting Engine] 🎯 Triggering AI Gemini dynamic script for POI: $poiId (Device: $deviceId)');
+  } else {
+    print('[Scripting Engine] 🎯 Serving static pre-recorded audio script for POI: $poiId');
   }
 }

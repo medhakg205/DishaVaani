@@ -6,6 +6,8 @@ import '../services/poi.dart';
 import 'itinerary_import.dart';
 import 'point_detect.dart';
 import 'splash.dart';
+import '../widgets/dynamic_scripting_toggle.dart';
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -136,7 +138,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Icon(Icons.map, size: 60, color: AppColors.maroon),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
+              const DynamicScriptingToggle(),
+              const SizedBox(height: 12),
               const Text(
                 'NEARBY MONUMENTS',
                 style: TextStyle(

@@ -17,7 +17,7 @@ firebase_admin.initialize_app(options={'projectId': 'dishavaani-db373'})
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
-BUCKET_NAME = "audio"  # NOTE: standalone_server.py uses "Audio" (capital A) — confirm which matches your real Supabase bucket and align both files
+BUCKET_NAME = os.environ.get("SUPABASE_BUCKET_NAME", "Audio")
 
 
 def _json_response(payload: dict, status: int) -> https_fn.Response:
