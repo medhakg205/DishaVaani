@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
@@ -21,21 +21,23 @@ class ItineraryService {
   // is sorted.
   static const String _geminiApiKey = geminiApiKey; // imported from secrets.dart, never committed
 
-  /// Sends the uploaded file directly to Gemini and parses the structured
-  /// stops out of the response.
-  static Future<List<ItineraryStop>> parseItineraryFile(File file) async {
-    final extension = file.path.split('.').last.toLowerCase();
-    final mimeType = switch (extension) {
+  /// Sends the file's raw bytes directly to Gemini and parses the structured
+  /// stops out of the response. Takes bytes + extension instead of a
+  /// dart:io File, so this works the same on web, phone, or desktop — a
+  /// "real file path" doesn't exist on web at all.
+  static Future<List<ItineraryStop>> parseItineraryBytes(
+    Uint8List fileBytes, {
+    required String extension,
+  }) async {
+    final mimeType = switch (extension.toLowerCase()) {
       'pdf' => 'application/pdf',
       'png' => 'image/png',
       'jpg' || 'jpeg' => 'image/jpeg',
       _ => throw Exception('Unsupported file type: $extension'),
     };
 
-    final fileBytes = await file.readAsBytes();
-
     final model = GenerativeModel(
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash',
       apiKey: _geminiApiKey,
     );
 
@@ -93,6 +95,7 @@ class ItineraryService {
         .map((s) => ItineraryStop.fromFirestore(s as Map<String, dynamic>))
         .toList();
   }
+
   static Future<List<ItineraryStop>> resolveStops(List<ItineraryStop> stops) async {
     final poiService = PoiService();
     final resolved = <ItineraryStop>[];
@@ -111,8 +114,8 @@ class ItineraryService {
         ));
       } else {
         resolved.add(stop); // no match found, keep unresolved
+      }
     }
-  }
-  return resolved;
+    return resolved;
   }
 }

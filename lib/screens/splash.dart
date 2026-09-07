@@ -2,8 +2,8 @@
 import 'package:flutter/material.dart';
 
 import '../core/constants/app_colors.dart';
-import 'home.dart';
 import 'interest_quiz.dart';
+import 'itinerary_import.dart';
 import 'language_select.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -23,7 +23,7 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!context.mounted || completedQuiz != true) return;
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
+      MaterialPageRoute(builder: (_) => const ItineraryImportScreen()),
     );
   }
 

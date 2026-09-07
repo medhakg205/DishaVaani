@@ -1,9 +1,10 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 
 import '../services/itinerary.dart';
+import 'home.dart';
 
 const Color maroon = Color(0xFF6B2737);
 const Color terracotta = Color(0xFFC1652F);
@@ -28,11 +29,21 @@ class _ItineraryImportScreenState extends State<ItineraryImportScreen> {
       allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg'],
     );
 
-    if (files.isEmpty || files.first.path == null) return;
+    if (files.isEmpty) return; // user cancelled
 
-    final file = File(files.first.path!);
+    final pickedFile = files.first;
 
-    final fileSizeInMB = await file.length() / (1024 * 1024);
+    Uint8List bytes;
+    try {
+      // file_picker v12 dropped the always-loaded `.bytes` property —
+      // you now have to explicitly ask it to load the content.
+      bytes = await pickedFile.readAsBytes();
+    } catch (e) {
+      setState(() => _errorMessage = 'Could not read that file. Try picking it again.');
+      return;
+    }
+
+    final fileSizeInMB = bytes.length / (1024 * 1024);
     if (fileSizeInMB > 20) {
       setState(() => _errorMessage = 'That file is too large. Try a smaller photo or PDF (under 20MB).');
       return;
@@ -41,7 +52,10 @@ class _ItineraryImportScreenState extends State<ItineraryImportScreen> {
     setState(() => _isUploading = true);
 
     try {
-      final parsedStops = await ItineraryService.parseItineraryFile(file);
+      final parsedStops = await ItineraryService.parseItineraryBytes(
+        bytes,
+        extension: pickedFile.extension ?? '',
+      );
       if (!mounted) return;
 
       final resolvedStops = await ItineraryService.resolveStops(parsedStops);
@@ -51,7 +65,7 @@ class _ItineraryImportScreenState extends State<ItineraryImportScreen> {
       if (!mounted) return;
 
       final unresolvedCount = resolvedStops
-          .where((s) => s.poiId == null)
+          .where((s) => s.monumentId == null)
           .length;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -62,7 +76,14 @@ class _ItineraryImportScreenState extends State<ItineraryImportScreen> {
           ),
         ),
       );
-      Navigator.pop(context);
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => HomeScreen(itineraryStops: resolvedStops),
+        ),
+      );
     } catch (e) {
       // TEMPORARY — showing the real error while debugging. Revert to the
       // friendly message once this is working.
@@ -198,6 +219,23 @@ class _ItineraryImportScreenState extends State<ItineraryImportScreen> {
                 style: const TextStyle(color: Colors.red, fontSize: 12),
               ),
             ],
+            const SizedBox(height: 24),
+            Center(
+              child: TextButton(
+                onPressed: _isUploading
+                    ? null
+                    : () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (_) => const HomeScreen()),
+                        );
+                      },
+                child: const Text(
+                  'Skip for now',
+                  style: TextStyle(color: maroon),
+                ),
+              ),
+            ),
           ],
         ),
       ),

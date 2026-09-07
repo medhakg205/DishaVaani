@@ -2,13 +2,15 @@
 import 'package:flutter/material.dart';
 
 import '../core/constants/app_colors.dart';
+import '../models/itinerary_stop.dart';
 import '../services/poi.dart';
-import 'itinerary_import.dart';
 import 'point_detect.dart';
 import 'splash.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final List<ItineraryStop>? itineraryStops;
+
+  const HomeScreen({super.key, this.itineraryStops});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -26,6 +28,55 @@ class _HomeScreenState extends State<HomeScreen> {
   String? errorMessage;
   Map<String, int> monumentPoiCounts = {};
   String? selectedMonumentId;
+
+  // Builds the rows to actually show on screen. If there's an itinerary,
+  // this shows ONLY the itinerary's places — matched ones as normal rows,
+  // unmatched ones (no monumentId) as grey/disabled rows. With no
+  // itinerary (Skip was tapped), it falls back to showing everything
+  // nearby, same as before this feature existed.
+  List<_MonumentListItem> _buildDisplayItems(Map<String, int> poiCounts) {
+    final itinerary = widget.itineraryStops;
+
+    if (itinerary == null || itinerary.isEmpty) {
+      return poiCounts.entries
+          .map((e) => _MonumentListItem(
+                monumentId: e.key,
+                displayName: _monumentName(e.key),
+                poiCount: e.value,
+                isAvailable: true,
+              ))
+          .toList();
+    }
+
+    return itinerary.map((stop) {
+      final monumentId = stop.monumentId;
+      if (monumentId != null) {
+        return _MonumentListItem(
+          monumentId: monumentId,
+          displayName: _monumentName(monumentId),
+          poiCount: poiCounts[monumentId] ?? 0,
+          isAvailable: true,
+        );
+      }
+      // No monumentId means resolveStops() couldn't find this place in
+      // the monuments collection — show it, but as unavailable.
+      return _MonumentListItem(
+        monumentId: null,
+        displayName: stop.placeName,
+        poiCount: 0,
+        isAvailable: false,
+      );
+    }).toList();
+  }
+
+  List<_MonumentListItem> get _displayItems => _buildDisplayItems(monumentPoiCounts);
+
+  String? _firstAvailableId(List<_MonumentListItem> items) {
+    for (final item in items) {
+      if (item.isAvailable) return item.monumentId;
+    }
+    return null;
+  }
 
   @override
   void initState() {
@@ -54,7 +105,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         monumentPoiCounts = poiCounts;
-        selectedMonumentId = poiCounts.isNotEmpty ? poiCounts.keys.first : null;
+        selectedMonumentId = _firstAvailableId(_buildDisplayItems(poiCounts));
         isLoading = false;
       });
     } catch (error) {
@@ -62,7 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         // Keep the UI navigable while the backend is unavailable.
         monumentPoiCounts = _demoMonumentPoiCounts;
-        selectedMonumentId = monumentPoiCounts.keys.first;
+        selectedMonumentId = _firstAvailableId(_buildDisplayItems(_demoMonumentPoiCounts));
         errorMessage = null;
         isLoading = false;
       });
@@ -88,6 +139,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final items = _displayItems;
+
     return PopScope<void>(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -106,20 +159,6 @@ class _HomeScreenState extends State<HomeScreen> {
             'DishaVaani',
             style: TextStyle(color: Colors.white),
           ),
-          actions: [
-            IconButton(
-              tooltip: 'Import itinerary',
-              icon: const Icon(Icons.upload_file, color: Colors.white),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const ItineraryImportScreen(),
-                  ),
-                );
-              },
-            ),
-          ],
         ),
         body: Padding(
           padding: const EdgeInsets.all(16),
@@ -171,7 +210,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                       )
-                    : monumentPoiCounts.isEmpty
+                    : items.isEmpty
                     ? const Center(
                         child: Text(
                           'No monuments with POIs were found.',
@@ -180,28 +219,43 @@ class _HomeScreenState extends State<HomeScreen> {
                       )
                     : ListView.builder(
                         padding: const EdgeInsets.only(bottom: 12),
-                        itemCount: monumentPoiCounts.length,
+                        itemCount: items.length,
                         itemBuilder: (context, index) {
-                          final entry = monumentPoiCounts.entries.elementAt(
-                            index,
-                          );
+                          final item = items[index];
+                          final isSelected =
+                              item.isAvailable && selectedMonumentId == item.monumentId;
+
                           return InkWell(
-                            onTap: () =>
-                                setState(() => selectedMonumentId = entry.key),
+                            onTap: item.isAvailable
+                                ? () => setState(
+                                      () => selectedMonumentId = item.monumentId,
+                                    )
+                                : () {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          '${item.displayName} isn\'t available yet — '
+                                          'it hasn\'t been added to our monuments database.',
+                                        ),
+                                      ),
+                                    );
+                                  },
                             borderRadius: BorderRadius.circular(10),
                             child: Container(
                               margin: const EdgeInsets.only(bottom: 12),
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: item.isAvailable
+                                    ? Colors.white
+                                    : Colors.grey.shade200,
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: selectedMonumentId == entry.key
-                                      ? AppColors.terracotta
-                                      : Colors.black12,
-                                  width: selectedMonumentId == entry.key
-                                      ? 2
-                                      : 1,
+                                  color: !item.isAvailable
+                                      ? Colors.grey.shade400
+                                      : isSelected
+                                          ? AppColors.terracotta
+                                          : Colors.black12,
+                                  width: isSelected ? 2 : 1,
                                 ),
                               ),
                               child: Row(
@@ -210,35 +264,50 @@ class _HomeScreenState extends State<HomeScreen> {
                                     width: 56,
                                     height: 56,
                                     decoration: BoxDecoration(
-                                      color: AppColors.sandstone,
+                                      color: item.isAvailable
+                                          ? AppColors.sandstone
+                                          : Colors.grey.shade300,
                                       borderRadius: BorderRadius.circular(8),
                                     ),
-                                    child: const Icon(
+                                    child: Icon(
                                       Icons.account_balance,
-                                      color: AppColors.terracotta,
+                                      color: item.isAvailable
+                                          ? AppColors.terracotta
+                                          : Colors.grey.shade500,
                                     ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Text(
-                                      _monumentName(entry.key),
-                                      style: const TextStyle(
+                                      item.displayName,
+                                      style: TextStyle(
                                         fontWeight: FontWeight.w600,
+                                        color: item.isAvailable
+                                            ? Colors.black
+                                            : Colors.grey.shade600,
                                       ),
                                     ),
                                   ),
-                                  Text(
-                                    '${entry.value} POI${entry.value == 1 ? '' : 's'}',
-                                    style: const TextStyle(
-                                      color: Colors.black45,
+                                  if (item.isAvailable)
+                                    Text(
+                                      '${item.poiCount} POI${item.poiCount == 1 ? '' : 's'}',
+                                      style: const TextStyle(color: Colors.black45),
+                                    )
+                                  else
+                                    Text(
+                                      'Not available',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade500,
+                                        fontStyle: FontStyle.italic,
+                                      ),
                                     ),
-                                  ),
-                                  if (selectedMonumentId == entry.key)
+                                  if (isSelected)
                                     const Padding(
                                       padding: EdgeInsets.only(left: 8),
                                       child: Icon(
-                                        Icons.check,
-                                        color: AppColors.terracotta,
+                                        Icons.radio_button_checked,
+                                        size: 16,
+                                        color: AppColors.maroon,
                                       ),
                                     ),
                                 ],
@@ -280,4 +349,18 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+}
+
+class _MonumentListItem {
+  final String? monumentId;
+  final String displayName;
+  final int poiCount;
+  final bool isAvailable;
+
+  const _MonumentListItem({
+    required this.monumentId,
+    required this.displayName,
+    required this.poiCount,
+    required this.isAvailable,
+  });
 }
