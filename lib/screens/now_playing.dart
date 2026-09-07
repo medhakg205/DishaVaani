@@ -9,6 +9,8 @@ import '../core/settings/app_settings.dart';
 import '../models/poi.dart';
 import '../services/poi.dart';
 import '../services/sensor.dart';
+import '../services/profile_store.dart';
+import '../services/scripting_settings.dart';
 import '../services/translation.dart';
 import '../widgets/volume_button.dart';
 import 'manual_poi_list.dart';
@@ -30,6 +32,7 @@ class NowPlayingScreen extends StatefulWidget {
 class _NowPlayingScreenState extends State<NowPlayingScreen> {
   final PoiService _poiService = PoiService();
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final Map<String, String> _dynamicAudioCache = {};
 
   final SensorService _sensorService = SensorService();
   StreamSubscription<SensorReading>? _sensorSub;
@@ -191,20 +194,41 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   Future<void> _playPoi(Poi poi) async {
-    String audioUrl = poi.getAudioUrl(AppSettings.selectedLanguage).trim();
+    final lang = AppSettings.selectedLanguage;
+    String audioUrl = poi.getAudioUrl(lang).trim();
+    final isDynamic = ScriptingSettings().isDynamicScriptingEnabled;
 
-    if (AppSettings.selectedLanguage != 'en' &&
-        !poi.audioUrls.containsKey(AppSettings.selectedLanguage)) {
-      try {
-        audioUrl = await TranslationService().getTranslatedAudioUrl(
-          poiId: poi.id,
-          sourceScript: poi.getScript('en'),
-          sourceLang: 'en',
-          targetLanguage: AppSettings.selectedLanguage,
-        );
-        poi.audioUrls[AppSettings.selectedLanguage] = audioUrl;
-      } catch (e) {
-        debugPrint('Translation failed: $e');
+    if (isDynamic) {
+      final cacheKey = '${poi.id}_$lang';
+      if (_dynamicAudioCache.containsKey(cacheKey)) {
+        audioUrl = _dynamicAudioCache[cacheKey]!;
+      } else {
+        try {
+          final profile = await ProfileStore().loadProfile();
+          final profileMap = profile.weights.isNotEmpty ? profile.toJson() : null;
+
+          audioUrl = await TranslationService().getTranslatedAudioUrl(
+            poiId: poi.id,
+            sourceScript: poi.getScript('en'),
+            sourceLang: 'en',
+            targetLanguage: lang,
+            interestProfile: profileMap,
+            onScriptResolved: (script) {
+              if (mounted) {
+                setState(() {
+                  poi.scripts[lang] = script;
+                });
+              } else {
+                poi.scripts[lang] = script;
+              }
+            },
+          );
+          _dynamicAudioCache[cacheKey] = audioUrl;
+          poi.audioUrls[lang] = audioUrl;
+        } catch (e) {
+          debugPrint('Translation failed: $e');
+          audioUrl = poi.getAudioUrl(lang).trim();
+        }
       }
     }
 
@@ -221,23 +245,44 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   Future<void> _togglePlayback(Poi poi) async {
-    String audioUrl = poi.getAudioUrl(AppSettings.selectedLanguage).trim();
+    final lang = AppSettings.selectedLanguage;
+    String audioUrl = poi.getAudioUrl(lang).trim();
+    final isDynamic = ScriptingSettings().isDynamicScriptingEnabled;
 
-    if (AppSettings.selectedLanguage != 'en' &&
-        !poi.audioUrls.containsKey(AppSettings.selectedLanguage)) {
-      setState(() => isResolvingAudio = true);
-      try {
-        audioUrl = await TranslationService().getTranslatedAudioUrl(
-          poiId: poi.id,
-          sourceScript: poi.getScript('en'),
-          sourceLang: 'en',
-          targetLanguage: AppSettings.selectedLanguage,
-        );
-        poi.audioUrls[AppSettings.selectedLanguage] = audioUrl;
-      } catch (e) {
-        debugPrint('Translation failed: $e');
-      } finally {
-        if (mounted) setState(() => isResolvingAudio = false);
+    if (isDynamic) {
+      final cacheKey = '${poi.id}_$lang';
+      if (_dynamicAudioCache.containsKey(cacheKey)) {
+        audioUrl = _dynamicAudioCache[cacheKey]!;
+      } else {
+        setState(() => isResolvingAudio = true);
+        try {
+          final profile = await ProfileStore().loadProfile();
+          final profileMap = profile.weights.isNotEmpty ? profile.toJson() : null;
+
+          audioUrl = await TranslationService().getTranslatedAudioUrl(
+            poiId: poi.id,
+            sourceScript: poi.getScript('en'),
+            sourceLang: 'en',
+            targetLanguage: lang,
+            interestProfile: profileMap,
+            onScriptResolved: (script) {
+              if (mounted) {
+                setState(() {
+                  poi.scripts[lang] = script;
+                });
+              } else {
+                poi.scripts[lang] = script;
+              }
+            },
+          );
+          _dynamicAudioCache[cacheKey] = audioUrl;
+          poi.audioUrls[lang] = audioUrl;
+        } catch (e) {
+          debugPrint('Translation failed: $e');
+          audioUrl = poi.getAudioUrl(lang).trim();
+        } finally {
+          if (mounted) setState(() => isResolvingAudio = false);
+        }
       }
     }
 
