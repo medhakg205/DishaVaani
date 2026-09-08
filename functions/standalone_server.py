@@ -31,58 +31,44 @@ SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 gemini_client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 
-def personalize_script(base_script: str, interest_profile: dict) -> str:
-    if not interest_profile:
-        return base_script  # no profile provided, skip personalization
+LANGUAGE_NAMES = {
+    "en": "English",
+    "hi": "Hindi",
+    "ta": "Tamil",
+    "te": "Telugu",
+    "kn": "Kannada",
+    "ml": "Malayalam",
+    "mr": "Marathi",
+    "bn": "Bengali",
+    "gu": "Gujarati",
+    "pa": "Punjabi",
+}
 
-    top_interests = [
-        interest for interest, score in sorted(
-            interest_profile.items(), key=lambda item: item[1], reverse=True
-        )[:2]
-        if score > 0
-    ]
-    if not top_interests:
-        return base_script
-    prompt = (
-        f"Rewrite this monument description to emphasize {', '.join(top_interests)}, "
-        f"while keeping all these facts accurate: {base_script} "
-        f"Keep it to 3-4 sentences, spoken narration style."
-    )
-
-    try:
-        response = gemini_client.models.generate_content(
-            model="gemini-3.6-flash",
-            contents=prompt
-        )
-        if response.text and response.text.strip():
-            return response.text.strip()
-    except Exception as e:
-        print(f"Personalization error: {e}")
-    return base_script
+GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
 
 
 def translate_text(text: str, source_lang: str, target_lang: str) -> str:
-    if not text:
-        return text
-    if source_lang.lower().strip() == target_lang.lower().strip():
+    if not text or source_lang.lower().strip() == target_lang.lower().strip():
         return text
 
-    # 1. First attempt: Use Gemini for fluent, natural regional translation
-    try:
-        prompt = (
-            f"You are a professional audio guide narrator and translator. "
-            f"Translate the following text from {source_lang} to language code '{target_lang}'. "
-            f"Output ONLY the translated spoken narration without explanations, markdown, or quotation marks:\n\n"
-            f"{text}"
-        )
-        response = gemini_client.models.generate_content(
-            model="gemini-3.6-flash",
-            contents=prompt
-        )
-        if response.text and response.text.strip():
-            return response.text.strip()
-    except Exception as ge:
-        print(f"Gemini translation fallback: {ge}")
+    target_lang_name = LANGUAGE_NAMES.get(target_lang, target_lang)
+    prompt = (
+        f"You are a professional audio guide narrator and translator. "
+        f"Translate the following text accurately and naturally into {target_lang_name} ({target_lang}). "
+        f"Output ONLY the translated spoken narration without explanations, markdown, or quotation marks:\n\n"
+        f"{text}"
+    )
+
+    for model_name in GEMINI_MODELS:
+        try:
+            response = gemini_client.models.generate_content(
+                model=model_name,
+                contents=prompt
+            )
+            if response.text and response.text.strip():
+                return response.text.strip()
+        except Exception as ge:
+            print(f"Gemini translation fallback with {model_name}: {ge}")
 
     # 2. Second attempt: GoogleTranslator with sanitized text
     try:
@@ -93,6 +79,52 @@ def translate_text(text: str, source_lang: str, target_lang: str) -> str:
 
     # 3. If translation fails, return original text instead of crashing
     return text
+
+
+def personalize_and_translate_script(base_script: str, interest_profile: dict, source_lang: str, target_lang: str) -> str:
+    top_interests = [
+        interest for interest, score in sorted(
+            interest_profile.items(), key=lambda item: item[1], reverse=True
+        )[:2]
+        if score > 0
+    ] if interest_profile else []
+
+    target_lang_name = LANGUAGE_NAMES.get(target_lang, target_lang)
+
+    if not top_interests:
+        return translate_text(base_script, source_lang, target_lang)
+
+    if target_lang == "en" or target_lang == source_lang:
+        prompt = (
+            f"You are a professional audio guide narrator. "
+            f"Rewrite this monument description to emphasize {', '.join(top_interests)}, "
+            f"while keeping all these facts accurate: {base_script} "
+            f"Keep it to 3-4 sentences, spoken narration style. "
+            f"Output ONLY the spoken narration in English without explanations, markdown, or quotation marks."
+        )
+    else:
+        prompt = (
+            f"You are a professional audio guide narrator and native {target_lang_name} speaker. "
+            f"Rewrite this monument description to emphasize {', '.join(top_interests)}, "
+            f"while keeping all these facts accurate: {base_script} "
+            f"Keep it to 3-4 sentences, spoken narration style. "
+            f"Output the narration directly in fluent, natural {target_lang_name} ({target_lang}). "
+            f"Output ONLY the {target_lang_name} spoken narration without explanations, English text, markdown, or quotation marks."
+        )
+
+    for model_name in GEMINI_MODELS:
+        try:
+            response = gemini_client.models.generate_content(
+                model=model_name,
+                contents=prompt
+            )
+            if response.text and response.text.strip():
+                return response.text.strip()
+        except Exception as e:
+            print(f"Personalization error with {model_name}: {e}")
+
+    # Fallback to translating base script if personalization fails
+    return translate_text(base_script, source_lang, target_lang)
 
 
 def upload_audio_to_supabase(local_audio_path: str, storage_path: str) -> tuple[str, str | None]:
@@ -172,16 +204,19 @@ def generate_regional_audio():
 
     # Script processing:
     if not read_aloud and interest_profile:
-        spoken_script = personalize_script(source_script, interest_profile)
-        print(f"PERSONALIZED ({source_lang}): {spoken_script}")
+        translated_text = personalize_and_translate_script(
+            source_script, interest_profile, source_lang, target_lang
+        )
+        print(f"PERSONALIZED & TRANSLATED ({target_lang}): {translated_text}")
     else:
-        # Static script read-aloud: use existing translated script if available, or source_script
-        spoken_script = existing_scripts.get(target_lang) or source_script
-
-    if target_lang != source_lang and spoken_script == source_script:
-        translated_text = translate_text(spoken_script, source_lang, target_lang)
-    else:
-        translated_text = spoken_script
+        # Static script read-aloud: use existing translated script if available, or translate source_script
+        existing_script = existing_scripts.get(target_lang)
+        if existing_script:
+            translated_text = existing_script
+        elif target_lang != source_lang:
+            translated_text = translate_text(source_script, source_lang, target_lang)
+        else:
+            translated_text = source_script
 
     try:
         try:
