@@ -167,8 +167,47 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
 
     if (!isDynamic) {
       print(
-        '[Scripting Engine] ⏸ Dynamic scripting disabled: Bypassing Gemini and serving static narration for POI: ${poi.id}',
+        '[Scripting Engine] ⏸ Dynamic scripting disabled: Serving read-aloud TTS narration for POI: ${poi.id} ($lang)',
       );
+      final readAloudCacheKey = '${poi.id}_${lang}_read_aloud';
+      if (_dynamicAudioCache.containsKey(readAloudCacheKey)) {
+        print('[Scripting Engine] 💾 Serving read-aloud from in-memory session cache');
+        return _dynamicAudioCache[readAloudCacheKey];
+      }
+
+      final cachedReadAloud = poi.getReadAloudUrl(lang);
+      if (cachedReadAloud.isNotEmpty) {
+        print('[Scripting Engine] 💾 Serving read-aloud from POI cache: $cachedReadAloud');
+        _dynamicAudioCache[readAloudCacheKey] = cachedReadAloud;
+        return cachedReadAloud;
+      }
+
+      final englishScript = poi.getScript('en');
+      if (englishScript.isNotEmpty) {
+        setState(() => isResolvingAudio = true);
+        try {
+          final newUrl = await _translationService.getTranslatedAudioUrl(
+            poiId: poi.id,
+            sourceScript: englishScript,
+            sourceLang: 'en',
+            targetLanguage: lang,
+            interestProfile: null,
+            readAloud: true,
+            onScriptResolved: (script) {
+              poi.scripts[lang] = script;
+            },
+          );
+          print('[Scripting Engine] ✅ Read-aloud TTS resolved: $newUrl');
+          _dynamicAudioCache[readAloudCacheKey] = newUrl;
+          poi.readAloudUrls[lang] = newUrl;
+          return newUrl;
+        } catch (e) {
+          print('[Scripting Engine] ⚠️ Read-aloud failed: $e, falling back to static audio');
+        } finally {
+          if (mounted) setState(() => isResolvingAudio = false);
+        }
+      }
+
       final staticUrl = poi.audioUrls[lang] ?? poi.audioUrls['en'];
       if (staticUrl != null && staticUrl.trim().isNotEmpty) {
         return staticUrl;

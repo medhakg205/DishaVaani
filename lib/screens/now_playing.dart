@@ -193,46 +193,94 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
   }
 
-  Future<void> _playPoi(Poi poi) async {
+  Future<String?> _resolveAudioUrl(Poi poi, {bool showLoading = false}) async {
     final lang = AppSettings.selectedLanguage;
-    String audioUrl = poi.getAudioUrl(lang).trim();
     final isDynamic = ScriptingSettings().isDynamicScriptingEnabled;
 
     if (isDynamic) {
       final cacheKey = '${poi.id}_$lang';
       if (_dynamicAudioCache.containsKey(cacheKey)) {
-        audioUrl = _dynamicAudioCache[cacheKey]!;
-      } else {
-        try {
-          final profile = await ProfileStore().loadProfile();
-          final profileMap = profile.weights.isNotEmpty ? profile.toJson() : null;
+        return _dynamicAudioCache[cacheKey]!;
+      }
 
-          audioUrl = await TranslationService().getTranslatedAudioUrl(
+      if (showLoading) setState(() => isResolvingAudio = true);
+      try {
+        final profile = await ProfileStore().loadProfile();
+        final profileMap = profile.weights.isNotEmpty ? profile.toJson() : null;
+
+        final audioUrl = await TranslationService().getTranslatedAudioUrl(
+          poiId: poi.id,
+          sourceScript: poi.getScript('en'),
+          sourceLang: 'en',
+          targetLanguage: lang,
+          interestProfile: profileMap,
+          onScriptResolved: (script) {
+            if (mounted) {
+              setState(() => poi.scripts[lang] = script);
+            } else {
+              poi.scripts[lang] = script;
+            }
+          },
+        );
+        _dynamicAudioCache[cacheKey] = audioUrl;
+        poi.audioUrls[lang] = audioUrl;
+        return audioUrl;
+      } catch (e) {
+        debugPrint('Dynamic audio resolution failed: $e');
+        return poi.getAudioUrl(lang).trim();
+      } finally {
+        if (showLoading && mounted) setState(() => isResolvingAudio = false);
+      }
+    } else {
+      // Dynamic scripting disabled: use Read Aloud TTS narration
+      final readAloudCacheKey = '${poi.id}_${lang}_read_aloud';
+      if (_dynamicAudioCache.containsKey(readAloudCacheKey)) {
+        return _dynamicAudioCache[readAloudCacheKey]!;
+      }
+
+      final cachedReadAloud = poi.getReadAloudUrl(lang);
+      if (cachedReadAloud.isNotEmpty) {
+        _dynamicAudioCache[readAloudCacheKey] = cachedReadAloud;
+        return cachedReadAloud;
+      }
+
+      final englishScript = poi.getScript('en');
+      if (englishScript.isNotEmpty) {
+        if (showLoading) setState(() => isResolvingAudio = true);
+        try {
+          final audioUrl = await TranslationService().getTranslatedAudioUrl(
             poiId: poi.id,
-            sourceScript: poi.getScript('en'),
+            sourceScript: englishScript,
             sourceLang: 'en',
             targetLanguage: lang,
-            interestProfile: profileMap,
+            interestProfile: null,
+            readAloud: true,
             onScriptResolved: (script) {
               if (mounted) {
-                setState(() {
-                  poi.scripts[lang] = script;
-                });
+                setState(() => poi.scripts[lang] = script);
               } else {
                 poi.scripts[lang] = script;
               }
             },
           );
-          _dynamicAudioCache[cacheKey] = audioUrl;
-          poi.audioUrls[lang] = audioUrl;
+          _dynamicAudioCache[readAloudCacheKey] = audioUrl;
+          poi.readAloudUrls[lang] = audioUrl;
+          return audioUrl;
         } catch (e) {
-          debugPrint('Translation failed: $e');
-          audioUrl = poi.getAudioUrl(lang).trim();
+          debugPrint('Read aloud resolution failed: $e');
+        } finally {
+          if (showLoading && mounted) setState(() => isResolvingAudio = false);
         }
       }
-    }
 
-    if (audioUrl.isEmpty) return;
+      final staticUrl = poi.getAudioUrl(lang).trim();
+      return staticUrl.isNotEmpty ? staticUrl : null;
+    }
+  }
+
+  Future<void> _playPoi(Poi poi) async {
+    final audioUrl = await _resolveAudioUrl(poi, showLoading: false);
+    if (audioUrl == null || audioUrl.isEmpty) return;
 
     try {
       await _audioPlayer.stop();
@@ -245,48 +293,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   Future<void> _togglePlayback(Poi poi) async {
-    final lang = AppSettings.selectedLanguage;
-    String audioUrl = poi.getAudioUrl(lang).trim();
-    final isDynamic = ScriptingSettings().isDynamicScriptingEnabled;
+    final audioUrl = await _resolveAudioUrl(poi, showLoading: true);
 
-    if (isDynamic) {
-      final cacheKey = '${poi.id}_$lang';
-      if (_dynamicAudioCache.containsKey(cacheKey)) {
-        audioUrl = _dynamicAudioCache[cacheKey]!;
-      } else {
-        setState(() => isResolvingAudio = true);
-        try {
-          final profile = await ProfileStore().loadProfile();
-          final profileMap = profile.weights.isNotEmpty ? profile.toJson() : null;
-
-          audioUrl = await TranslationService().getTranslatedAudioUrl(
-            poiId: poi.id,
-            sourceScript: poi.getScript('en'),
-            sourceLang: 'en',
-            targetLanguage: lang,
-            interestProfile: profileMap,
-            onScriptResolved: (script) {
-              if (mounted) {
-                setState(() {
-                  poi.scripts[lang] = script;
-                });
-              } else {
-                poi.scripts[lang] = script;
-              }
-            },
-          );
-          _dynamicAudioCache[cacheKey] = audioUrl;
-          poi.audioUrls[lang] = audioUrl;
-        } catch (e) {
-          debugPrint('Translation failed: $e');
-          audioUrl = poi.getAudioUrl(lang).trim();
-        } finally {
-          if (mounted) setState(() => isResolvingAudio = false);
-        }
-      }
-    }
-
-    if (audioUrl.isEmpty) {
+    if (audioUrl == null || audioUrl.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

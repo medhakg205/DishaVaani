@@ -8,8 +8,9 @@ class Poi {
   final double bearingTolerance;
   final Map<String, String> audioUrls;
   final Map<String, String> scripts;
+  final Map<String, String> readAloudUrls;
 
-  const Poi({
+  Poi({
     required this.id,
     required this.monumentId,
     required this.name,
@@ -18,7 +19,8 @@ class Poi {
     required this.bearingTolerance,
     required this.audioUrls,
     required this.scripts,
-  });
+    Map<String, String>? readAloudUrls,
+  }) : readAloudUrls = readAloudUrls ?? {};
 
   factory Poi.fromFirestore(String id, Map<String, dynamic> data) {
     final rawAudioUrls = data['audioUrls'] as Map<dynamic, dynamic>?;
@@ -35,6 +37,13 @@ class Poi {
           )
         : const {};
 
+    final rawReadAloudUrls = data['readAloudUrls'] as Map<dynamic, dynamic>?;
+    final Map<String, String> readAloudUrlsMap = rawReadAloudUrls != null
+        ? rawReadAloudUrls.map(
+            (key, value) => MapEntry(key.toString(), value.toString()),
+          )
+        : {};
+
     return Poi(
       id: id,
       monumentId: (data['monumentId'] as String? ?? '').trim(),
@@ -44,6 +53,7 @@ class Poi {
       bearingTolerance: (data['bearingTolerance'] as num?)?.toDouble() ?? 25.0,
       audioUrls: audioUrlsMap,
       scripts: scriptsMap,
+      readAloudUrls: readAloudUrlsMap,
     );
   }
 
@@ -53,5 +63,9 @@ class Poi {
 
   String getAudioUrl(String languageCode) {
     return audioUrls[languageCode] ?? audioUrls['en'] ?? '';
+  }
+
+  String getReadAloudUrl(String languageCode) {
+    return readAloudUrls[languageCode] ?? '';
   }
 }

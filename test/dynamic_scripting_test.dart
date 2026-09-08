@@ -160,5 +160,34 @@ void main() {
 
       expect(testPoi.getScript('en'), equals(personalizedScript));
     });
+
+    test('poi correctly parses and retrieves readAloudUrls for static read-aloud playback', () {
+      final data = {
+        'monumentId': 'qutub_minar',
+        'name': 'Iron Pillar',
+        'lat': 28.5244,
+        'long': 77.1855,
+        'bearingTolerance': 25.0,
+        'audioUrls': {
+          'en': 'https://static.audio/iron_pillar_en_prerecorded.mp3',
+        },
+        'readAloudUrls': {
+          'en': 'https://supabase.audio/tts_cached/iron_pillar_en_read_aloud.mp3',
+          'hi': 'https://supabase.audio/tts_cached/iron_pillar_hi_read_aloud.mp3',
+        },
+        'scripts': {
+          'en': 'Static narration script for Iron Pillar',
+        },
+      };
+
+      final poi = Poi.fromFirestore('poi_iron_pillar', data);
+
+      // Pre-recorded human voice URL
+      expect(poi.getAudioUrl('en'), equals('https://static.audio/iron_pillar_en_prerecorded.mp3'));
+      // Read-aloud TTS generated URLs
+      expect(poi.getReadAloudUrl('en'), equals('https://supabase.audio/tts_cached/iron_pillar_en_read_aloud.mp3'));
+      expect(poi.getReadAloudUrl('hi'), equals('https://supabase.audio/tts_cached/iron_pillar_hi_read_aloud.mp3'));
+      expect(poi.getReadAloudUrl('ta'), equals(''));
+    });
   });
 }

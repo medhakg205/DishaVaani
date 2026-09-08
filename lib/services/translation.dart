@@ -12,6 +12,7 @@ class TranslationService {
     required String targetLanguage,
     String sourceLang = 'en',
     Map<String, dynamic>? interestProfile,
+    bool readAloud = false,
     void Function(String script)? onScriptResolved,
   }) async {
     final payload = <String, dynamic>{
@@ -19,6 +20,7 @@ class TranslationService {
       'sourceScript': sourceScript,
       'sourceLang': sourceLang,
       'targetLanguage': targetLanguage,
+      'readAloud': readAloud,
     };
     if (interestProfile != null && interestProfile.isNotEmpty) {
       payload['interestProfile'] = interestProfile;

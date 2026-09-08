@@ -139,6 +139,7 @@ def generate_regional_audio():
     source_lang = data.get("sourceLang", "en")
     target_lang = data.get("targetLanguage")
     interest_profile = data.get("interestProfile")  # optional, may be None
+    read_aloud = data.get("readAloud", False) or data.get("forceTts", False)
 
     if not poi_id or not source_script or not target_lang:
         return jsonify({"error": "poiId, sourceScript, and targetLanguage are required"}), 400
@@ -152,16 +153,35 @@ def generate_regional_audio():
 
     poi_data = doc.to_dict()
     existing_urls = poi_data.get("audioUrls", {})
-    if not interest_profile and target_lang in existing_urls:
+    existing_read_aloud_urls = poi_data.get("readAloudUrls", {})
+    existing_scripts = poi_data.get("scripts", {})
+
+    # If read-aloud is requested and already generated/cached, return it immediately
+    if read_aloud and not interest_profile and target_lang in existing_read_aloud_urls:
         return jsonify({
-            "audioUrl": existing_urls[target_lang],
-            "script": poi_data.get("scripts", {}).get(target_lang, source_script),
+            "audioUrl": existing_read_aloud_urls[target_lang],
+            "script": existing_scripts.get(target_lang, source_script),
         }), 200
 
-    personalized_script = personalize_script(source_script, interest_profile)
-    print(f"PERSONALIZED ({source_lang}): {personalized_script}")
+    # Normal static fallback if read_aloud is NOT requested and not personalized
+    if not read_aloud and not interest_profile and target_lang in existing_urls:
+        return jsonify({
+            "audioUrl": existing_urls[target_lang],
+            "script": existing_scripts.get(target_lang, source_script),
+        }), 200
 
-    translated_text = translate_text(personalized_script, source_lang, target_lang)
+    # Script processing:
+    if not read_aloud and interest_profile:
+        spoken_script = personalize_script(source_script, interest_profile)
+        print(f"PERSONALIZED ({source_lang}): {spoken_script}")
+    else:
+        # Static script read-aloud: use existing translated script if available, or source_script
+        spoken_script = existing_scripts.get(target_lang) or source_script
+
+    if target_lang != source_lang and spoken_script == source_script:
+        translated_text = translate_text(spoken_script, source_lang, target_lang)
+    else:
+        translated_text = spoken_script
 
     try:
         try:
@@ -175,7 +195,7 @@ def generate_regional_audio():
     except Exception as e:
         return jsonify({"error": f"Text-to-speech failed: {str(e)}"}), 500
 
-    if interest_profile:
+    if interest_profile and not read_aloud:
         top_interests = [
             interest for interest, score in sorted(
                 interest_profile.items(), key=lambda item: item[1], reverse=True
@@ -184,6 +204,8 @@ def generate_regional_audio():
         ]
         profile_tag = "_".join(sorted(top_interests)) if top_interests else "personalized"
         file_name = f"{poi_id}_{target_lang}_{profile_tag}.mp3"
+    elif read_aloud:
+        file_name = f"{poi_id}_{target_lang}_read_aloud.mp3"
     else:
         file_name = f"{poi_id}_{target_lang}.mp3"
 
@@ -198,8 +220,13 @@ def generate_regional_audio():
     if not public_audio_url:
         return jsonify({"error": f"Supabase upload failed: {upload_err}"}), 500
 
-    # Only update the base POI document if this is the default/unpersonalized script
-    if not interest_profile:
+    # Cache in Firestore
+    if read_aloud:
+        doc_ref.update({
+            f"readAloudUrls.{target_lang}": public_audio_url,
+            f"scripts.{target_lang}": translated_text,
+        })
+    elif not interest_profile:
         doc_ref.update({
             f"audioUrls.{target_lang}": public_audio_url,
             f"scripts.{target_lang}": translated_text,

@@ -70,7 +70,8 @@ class RecommendationEngine {
     if (categories.isEmpty) return 0.0;
     double sum = 0.0;
     for (final cat in categories) {
-      final val = profile[cat];
+      final key = cat.toLowerCase().trim();
+      final val = profile[key] ?? profile[cat];
       if (val is num) {
         sum += val.toDouble();
       }

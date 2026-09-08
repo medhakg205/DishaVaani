@@ -1,3 +1,4 @@
+
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -6,7 +7,9 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 
 import 'poi.dart';
 import '../models/itinerary_stop.dart';
+import '../models/monument.dart';
 import 'device_identity.dart';
+import 'real_itinerary_update_port.dart';
 import 'secrets.dart';
 
 class ItineraryService {
@@ -118,4 +121,15 @@ class ItineraryService {
     }
     return resolved;
   }
+
+  /// STEP 4: Inserts a new recommended monument as an ItineraryStop into the 
+  /// device's active itinerary directly after [afterIndex], and persists it to Firestore.
+  static Future<void> insertStopAfter({
+    required int afterIndex,
+    required Monument monument,
+  }) async {
+    final port = RealItineraryUpdatePort();
+    await port.insertStopAfter(afterIndex: afterIndex, monument: monument);
+  }
 }
+
