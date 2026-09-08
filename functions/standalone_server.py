@@ -44,7 +44,7 @@ LANGUAGE_NAMES = {
     "pa": "Punjabi",
 }
 
-GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+GEMINI_MODELS = ["gemini-3.6-flash"]
 
 
 def translate_text(text: str, source_lang: str, target_lang: str) -> str:
