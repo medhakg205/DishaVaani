@@ -12,6 +12,7 @@ import '../services/poi.dart';
 import '../services/sensor.dart';
 import '../services/translation.dart';
 import '../widgets/compass_needle.dart';
+import '../widgets/theme_mode_toggle.dart';
 import '../widgets/volume_button.dart';
 import 'now_playing.dart';
 import '../services/device_identity.dart';
@@ -373,404 +374,775 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
     return directions[index];
   }
 
+  String? _poiAssetPath(Poi poi) {
+    final name = poi.name.toLowerCase();
+    final id = poi.id.toLowerCase();
+
+    // 1. Specific Qutub Minar POIs
+    if (name.contains('wall') || name.contains('carving') || id.contains('carving')) {
+      return 'assets/images/qutub_wall_carving.png';
+    } else if (name.contains('iron') || id.contains('iron')) {
+      return 'assets/images/qutub_iron_pillar.jpg';
+    } else if (name.contains('darwaza') || id.contains('darwaza')) {
+      return 'assets/images/qutub_alai_darwaza.jpg';
+    } else if (name.contains('chirantana') ||
+        id.contains('chirantana') ||
+        name.contains('quwwat') ||
+        id.contains('quwwat') ||
+        name.contains('mosque') ||
+        id.contains('mosque') ||
+        name.contains('room')) {
+      return 'assets/images/quwwat_ul_islam.jpg';
+    } else if (name.contains('victory') ||
+        name.contains('tower') ||
+        id.contains('tower') ||
+        id == 'qutub_minar_tower') {
+      return 'assets/images/qutub_minar_tower.jpg';
+    }
+
+    // 2. Other Monument POIs
+    if (name.contains('lahori') ||
+        id.contains('lahori') ||
+        name.contains('diwan') ||
+        id.contains('diwan') ||
+        name.contains('red fort') ||
+        id.contains('red_fort')) {
+      return 'assets/images/red_fort_lahori_gate.jpg';
+    } else if (name.contains('humayun') ||
+        id.contains('humayun') ||
+        name.contains('charbagh') ||
+        id.contains('charbagh')) {
+      return 'assets/images/humayuns_tomb.jpg';
+    } else if (name.contains('india gate') ||
+        id.contains('india_gate') ||
+        name.contains('amar jawan') ||
+        id.contains('memorial')) {
+      return 'assets/images/india_gate.jpg';
+    } else if (name.contains('baoli') ||
+        name.contains('baoli') ||
+        name.contains('agrasen') ||
+        id.contains('agrashan')) {
+      return 'assets/images/agrasen_ki_baoli.jpg';
+    } else if (name.contains('jama') || id.contains('jama')) {
+      return 'assets/images/jama_masjid.jpg';
+    }
+
+    // Fallback for any Qutub Minar POI
+    if (poi.monumentId.toLowerCase().contains('qutub')) {
+      return 'assets/images/qutub_minar_tower.jpg';
+    }
+
+    return null;
+  }
+
+  Widget _buildPoiThumbnail(Poi? poi, bool isDark) {
+    if (poi == null) {
+      return Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF38252C) : AppColors.sandstone,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isDark ? Colors.white.withOpacity(0.08) : AppColors.lightBorder,
+          ),
+        ),
+        child: Icon(
+          Icons.temple_hindu,
+          color: isDark ? const Color(0xFFE5A17D) : AppColors.terracotta,
+          size: 24,
+        ),
+      );
+    }
+
+    final asset = _poiAssetPath(poi);
+    if (asset != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: isDark ? Colors.white.withOpacity(0.12) : AppColors.lightBorder,
+            ),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Image.asset(
+            asset,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => _poiThumbnailFallback(isDark),
+          ),
+        ),
+      );
+    }
+
+    return _poiThumbnailFallback(isDark);
+  }
+
+  Widget _poiThumbnailFallback(bool isDark) {
+    return Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF38252C) : AppColors.sandstone,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark ? Colors.white.withOpacity(0.08) : AppColors.lightBorder,
+        ),
+      ),
+      child: Icon(
+        Icons.account_balance,
+        color: isDark ? const Color(0xFFE5A17D) : AppColors.terracotta,
+        size: 24,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final topPoi = _topPoi;
     final radians = heading * 3.141592653589793 / 180;
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: AppColors.maroon,
-        elevation: 4,
-        leading: IconButton(
-          icon: const Icon(Icons.home, color: Colors.white),
-          onPressed: () => Navigator.popUntil(context, (r) => r.isFirst),
-        ),
-        title: const Text('DishaVaani', style: TextStyle(color: Colors.white)),
-        actions: const [
-          DynamicScriptingToggle(isCompact: true),
-        ],
-      ),
-      body: SafeArea(
-        child: !_hasSensorPermission
-            ? _SensorPermissionPrompt(
-                isRequesting: _isRequestingSensorPermission,
-                onRequest: _requestSensorPermission,
-              )
-            : Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-                    child: Column(
-                      children: [
-                        Text(
-                          _monumentName(widget.monumentId),
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.maroon,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          lat != null && long != null
-                              ? '${lat!.toStringAsFixed(4)}° N, ${long!.toStringAsFixed(4)}° E'
-                              : 'Waiting for GPS...',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.black54,
-                          ),
-                        ),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: AppSettings.themeModeNotifier,
+      builder: (context, _, child) {
+        final isDark = AppSettings.isDarkMode;
+
+        return Scaffold(
+          backgroundColor: isDark ? const Color(0xFF141215) : AppColors.lightBgMid,
+          appBar: AppBar(
+            elevation: 0,
+            backgroundColor: Colors.transparent,
+            foregroundColor: isDark ? Colors.white : AppColors.maroon,
+            centerTitle: true,
+            leading: IconButton(
+              icon: Icon(
+                Icons.home_outlined,
+                color: isDark ? Colors.white : AppColors.maroon,
+              ),
+              onPressed: () => Navigator.popUntil(context, (r) => r.isFirst),
+            ),
+            title: Text(
+              'DishaVaani',
+              style: TextStyle(
+                color: isDark ? Colors.white : AppColors.maroon,
+                fontFamily: 'Georgia',
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            actions: const [
+              DynamicScriptingToggle(isCompact: true),
+              ThemeModeToggle(),
+              SizedBox(width: 8),
+            ],
+          ),
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: isDark
+                    ? [
+                        AppColors.darkBgTop,
+                        AppColors.darkBgMid,
+                        AppColors.darkBgBottom,
+                      ]
+                    : [
+                        AppColors.lightBgTop,
+                        AppColors.lightBgMid,
+                        AppColors.lightBgBottom,
                       ],
-                    ),
-                  ),
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 8,
-                      horizontal: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: topPoi != null
-                          ? AppColors.terracotta.withOpacity(0.12)
-                          : Colors.black.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+              ),
+            ),
+            child: SafeArea(
+              child: !_hasSensorPermission
+                  ? _SensorPermissionPrompt(
+                      isRequesting: _isRequestingSensorPermission,
+                      onRequest: _requestSensorPermission,
+                      isDark: isDark,
+                    )
+                  : Column(
                       children: [
-                        Icon(
-                          topPoi != null ? Icons.radar : Icons.search,
-                          size: 15,
-                          color: topPoi != null
-                              ? AppColors.terracotta
-                              : Colors.black45,
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            topPoi != null
-                                ? 'POI detected — ${topPoi.name}'
-                                : 'Scanning for nearby POIs...',
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: topPoi != null
-                                  ? AppColors.terracotta
-                                  : Colors.black45,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text(
-                      '${heading.toInt()}° ${_headingLabel(heading)}',
-                      style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.maroon,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Center(
-                      child: SizedBox(
-                        width: 220,
-                        height: 220,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            Transform.rotate(
-                              angle: -radians,
-                              child: Stack(
-                                alignment: Alignment.center,
+                        // Monument Name & Location
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+                          child: Column(
+                            children: [
+                              Text(
+                                _monumentName(widget.monumentId),
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: 'Georgia',
+                                  color: isDark ? Colors.white : AppColors.maroon,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Container(
-                                    width: 200,
-                                    height: 200,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: AppColors.terracotta,
-                                        width: 3,
-                                      ),
+                                  Icon(
+                                    Icons.location_on_outlined,
+                                    size: 13,
+                                    color: isDark
+                                        ? const Color(0xFFE5A17D).withOpacity(0.7)
+                                        : AppColors.terracotta,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    lat != null && long != null
+                                        ? '${lat!.toStringAsFixed(4)}° N, ${long!.toStringAsFixed(4)}° E'
+                                        : 'Waiting for GPS...',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: isDark
+                                          ? Colors.white.withOpacity(0.55)
+                                          : AppColors.lightTextSecondary,
+                                      letterSpacing: 0.3,
                                     ),
-                                  ),
-                                  const Positioned(
-                                    top: 6,
-                                    child: CompassLabel('N'),
-                                  ),
-                                  const Positioned(
-                                    bottom: 6,
-                                    child: CompassLabel('S'),
-                                  ),
-                                  const Positioned(
-                                    left: 6,
-                                    child: CompassLabel('W'),
-                                  ),
-                                  const Positioned(
-                                    right: 6,
-                                    child: CompassLabel('E'),
                                   ),
                                 ],
                               ),
+                            ],
+                          ),
+                        ),
+
+                    // POI Scanning / Detection Pill
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 7,
+                        horizontal: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? (topPoi != null
+                                ? const Color(0xFF382229)
+                                : const Color(0xFF1E1A1E).withOpacity(0.8))
+                            : (topPoi != null
+                                ? const Color(0xFFFFF0E6)
+                                : Colors.white.withOpacity(0.85)),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isDark
+                              ? (topPoi != null
+                                  ? const Color(0xFFE5A17D).withOpacity(0.35)
+                                  : Colors.white.withOpacity(0.06))
+                              : (topPoi != null
+                                  ? AppColors.terracotta.withOpacity(0.4)
+                                  : AppColors.lightBorder),
+                          width: 1,
+                        ),
+                        boxShadow: topPoi != null
+                            ? [
+                                BoxShadow(
+                                  color: (isDark
+                                          ? const Color(0xFFE5A17D)
+                                          : AppColors.terracotta)
+                                      .withOpacity(0.15),
+                                  blurRadius: 10,
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            topPoi != null ? Icons.radar : Icons.search,
+                            size: 15,
+                            color: topPoi != null
+                                ? (isDark
+                                    ? const Color(0xFFE5A17D)
+                                    : AppColors.terracotta)
+                                : (isDark ? Colors.white54 : Colors.black45),
+                          ),
+                          const SizedBox(width: 7),
+                          Flexible(
+                            child: Text(
+                              topPoi != null
+                                  ? 'POI detected — ${topPoi.name}'
+                                  : 'Scanning for nearby POIs...',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: topPoi != null
+                                    ? (isDark
+                                        ? const Color(0xFFE5A17D)
+                                        : AppColors.terracotta)
+                                    : (isDark
+                                        ? Colors.white60
+                                        : AppColors.lightTextSecondary),
+                              ),
                             ),
-                            const CompassNeedle(size: 90),
-                          ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Heading Value
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(
+                            '${heading.toInt()}°',
+                            style: TextStyle(
+                              fontSize: 30,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _headingLabel(heading),
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: isDark
+                                  ? const Color(0xFFE5A17D)
+                                  : AppColors.terracotta,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Compass Dial
+                    Expanded(
+                      child: Center(
+                        child: SizedBox(
+                          width: 240,
+                          height: 240,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              // Ambient radial glow
+                              Container(
+                                width: 230,
+                                height: 230,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: RadialGradient(
+                                    colors: [
+                                      (isDark
+                                              ? const Color(0xFFE5A17D)
+                                              : AppColors.terracotta)
+                                          .withOpacity(0.09),
+                                      Colors.transparent,
+                                    ],
+                                    stops: const [0.55, 1.0],
+                                  ),
+                                ),
+                              ),
+                              // Rotating Dial
+                              Transform.rotate(
+                                angle: -radians,
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    // Outer frosted glass disc
+                                    Container(
+                                      width: 216,
+                                      height: 216,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: isDark
+                                            ? const Color(0xFF221A20).withOpacity(0.6)
+                                            : Colors.white.withOpacity(0.8),
+                                        border: Border.all(
+                                          color: isDark
+                                              ? const Color(0xFFE5A17D).withOpacity(0.35)
+                                              : AppColors.terracotta.withOpacity(0.35),
+                                          width: 2,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: isDark
+                                                ? Colors.black.withOpacity(0.35)
+                                                : AppColors.terracotta.withOpacity(0.12),
+                                            blurRadius: 16,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                          BoxShadow(
+                                            color: (isDark
+                                                    ? const Color(0xFFE5A17D)
+                                                    : AppColors.terracotta)
+                                                .withOpacity(0.1),
+                                            blurRadius: 14,
+                                            spreadRadius: 1,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    // Inner fine track ring
+                                    Container(
+                                      width: 172,
+                                      height: 172,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: isDark
+                                              ? Colors.white.withOpacity(0.07)
+                                              : Colors.black.withOpacity(0.06),
+                                          width: 1,
+                                        ),
+                                      ),
+                                    ),
+                                    // 12 Degree Tick marks (every 30 degrees)
+                                    ...List.generate(12, (i) {
+                                      final deg = i * 30;
+                                      if (deg % 90 == 0) return const SizedBox.shrink();
+                                      final angleRad = deg * 3.141592653589793 / 180;
+                                      return Transform.rotate(
+                                        angle: angleRad,
+                                        child: Align(
+                                          alignment: Alignment.topCenter,
+                                          child: Container(
+                                            margin: const EdgeInsets.only(top: 8),
+                                            width: 1.5,
+                                            height: 7,
+                                            decoration: BoxDecoration(
+                                              color: isDark
+                                                  ? Colors.white.withOpacity(0.2)
+                                                  : Colors.black.withOpacity(0.15),
+                                              borderRadius: BorderRadius.circular(1),
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }),
+                                    Positioned(
+                                      top: 10,
+                                      child: CompassLabel('N', isDark: isDark),
+                                    ),
+                                    Positioned(
+                                      bottom: 10,
+                                      child: CompassLabel('S', isDark: isDark),
+                                    ),
+                                    Positioned(
+                                      left: 12,
+                                      child: CompassLabel('W', isDark: isDark),
+                                    ),
+                                    Positioned(
+                                      right: 12,
+                                      child: CompassLabel('E', isDark: isDark),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              CompassNeedle(size: 96, isDark: isDark),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  Container(
-                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.terracotta, width: 2),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 6,
-                          offset: Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 52,
-                          height: 52,
-                          decoration: BoxDecoration(
-                            color: AppColors.gold.withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(8),
+
+                    // Floating Glass Bottom Player Card
+                    GestureDetector(
+                      onTap: () async {
+                        if (isPlaying) await _audioPlayer.pause();
+                        if (!context.mounted) return;
+
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => NowPlayingScreen(
+                              monumentId: widget.monumentId,
+                              initialPois: _monumentPois.isNotEmpty ? _monumentPois : null,
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.temple_hindu,
-                            color: AppColors.maroon,
-                            size: 26,
+                        );
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF231D21)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: isDark
+                                ? Colors.white.withOpacity(0.09)
+                                : AppColors.lightBorder,
+                            width: 1,
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: isDark
+                                  ? Colors.black.withOpacity(0.4)
+                                  : AppColors.terracotta.withOpacity(0.08),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
+                        child: Row(
+                          children: [
+                            _buildPoiThumbnail(topPoi, isDark),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'NOW APPROACHING',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                letterSpacing: 1.1,
+                                                fontWeight: FontWeight.w600,
+                                                color: isDark
+                                                    ? const Color(0xFFE5A17D).withOpacity(0.9)
+                                                    : AppColors.terracotta,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              topPoi?.name ?? 'Nothing playing yet',
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.bold,
+                                                color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      VolumeButton(
+                                        audioPlayer: _audioPlayer,
+                                        isDark: isDark,
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Align(
+                                    alignment: Alignment.center,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const Text(
-                                          'Now approaching',
+                                        IconButton(
+                                          icon: Icon(
+                                            Icons.replay_5,
+                                            color: isDark
+                                                ? const Color(0xFFE5A17D)
+                                                : AppColors.terracotta,
+                                          ),
+                                          iconSize: 26,
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () => _seekBy(const Duration(seconds: -5)),
+                                        ),
+                                        const SizedBox(width: 18),
+                                        GestureDetector(
+                                          onTap: topPoi == null || isResolvingAudio
+                                              ? null
+                                              : () => _togglePlayback(topPoi),
+                                          child: Container(
+                                            width: 46,
+                                            height: 46,
+                                            decoration: BoxDecoration(
+                                              color: isDark
+                                                  ? const Color(0xFF752433)
+                                                  : AppColors.maroon,
+                                              shape: BoxShape.circle,
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: (isDark
+                                                          ? const Color(0xFF752433)
+                                                          : AppColors.maroon)
+                                                      .withOpacity(0.4),
+                                                  blurRadius: 10,
+                                                  offset: const Offset(0, 3),
+                                                ),
+                                              ],
+                                            ),
+                                            child: isResolvingAudio
+                                                ? const Padding(
+                                                    padding: EdgeInsets.all(13),
+                                                    child: CircularProgressIndicator(
+                                                      strokeWidth: 2.2,
+                                                      color: Colors.white,
+                                                    ),
+                                                  )
+                                                : Icon(
+                                                    isPlaying && _playingPoiId == topPoi?.id
+                                                        ? Icons.pause
+                                                        : Icons.play_arrow,
+                                                    color: Colors.white,
+                                                    size: 26,
+                                                  ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 18),
+                                        IconButton(
+                                          icon: Icon(
+                                            Icons.forward_5,
+                                            color: isDark
+                                                ? const Color(0xFFE5A17D)
+                                                : AppColors.terracotta,
+                                          ),
+                                          iconSize: 26,
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () => _seekBy(const Duration(seconds: 5)),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  SliderTheme(
+                                    data: SliderTheme.of(context).copyWith(
+                                      trackHeight: 2.8,
+                                      thumbShape: const RoundSliderThumbShape(
+                                        enabledThumbRadius: 5,
+                                      ),
+                                      overlayShape: const RoundSliderOverlayShape(
+                                        overlayRadius: 10,
+                                      ),
+                                      activeTrackColor: isDark
+                                          ? const Color(0xFFE5A17D)
+                                          : AppColors.terracotta,
+                                      inactiveTrackColor: isDark ? Colors.white24 : Colors.black12,
+                                      thumbColor: isDark
+                                          ? const Color(0xFFE5A17D)
+                                          : AppColors.terracotta,
+                                    ),
+                                    child: Slider(
+                                      min: 0,
+                                      max: _duration.inMilliseconds > 0
+                                          ? _duration.inMilliseconds.toDouble()
+                                          : 1,
+                                      value: _position.inMilliseconds
+                                          .clamp(
+                                            0,
+                                            _duration.inMilliseconds > 0
+                                                ? _duration.inMilliseconds
+                                                : 1,
+                                          )
+                                          .toDouble(),
+                                      onChanged: (value) => setState(
+                                        () => _position = Duration(
+                                          milliseconds: value.toInt(),
+                                        ),
+                                      ),
+                                      onChangeEnd: (value) async => _audioPlayer.seek(
+                                        Duration(milliseconds: value.toInt()),
+                                      ),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          _formatDuration(_position),
                                           style: TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.black54,
+                                            fontSize: 10.5,
+                                            color: isDark
+                                                ? Colors.white.withOpacity(0.5)
+                                                : AppColors.lightTextSecondary,
                                           ),
                                         ),
                                         Text(
-                                          topPoi?.name ?? 'Nothing playing yet',
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.bold,
-                                            color: AppColors.maroon,
+                                          _formatDuration(_duration),
+                                          style: TextStyle(
+                                            fontSize: 10.5,
+                                            color: isDark
+                                                ? Colors.white.withOpacity(0.5)
+                                                : AppColors.lightTextSecondary,
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                  VolumeButton(audioPlayer: _audioPlayer),
                                 ],
                               ),
-                              const SizedBox(height: 2),
-                              Align(
-                                alignment: Alignment.center,
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.replay_5,
-                                        color: AppColors.terracotta,
-                                      ),
-                                      iconSize: 26,
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      onPressed: () =>
-                                          _seekBy(const Duration(seconds: -5)),
-                                    ),
-                                    const SizedBox(width: 18),
-                                    GestureDetector(
-                                      onTap: topPoi == null || isResolvingAudio
-                                          ? null
-                                          : () => _togglePlayback(topPoi),
-                                      child: Container(
-                                        width: 44,
-                                        height: 44,
-                                        decoration: const BoxDecoration(
-                                          color: AppColors.maroon,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: isResolvingAudio
-                                            ? const Padding(
-                                                padding: EdgeInsets.all(12),
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2.5,
-                                                      color: Colors.white,
-                                                    ),
-                                              )
-                                            : Icon(
-                                                isPlaying &&
-                                                        _playingPoiId ==
-                                                            topPoi?.id
-                                                    ? Icons.pause
-                                                    : Icons.play_arrow,
-                                                color: Colors.white,
-                                                size: 24,
-                                              ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 18),
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.forward_5,
-                                        color: AppColors.terracotta,
-                                      ),
-                                      iconSize: 26,
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      onPressed: () =>
-                                          _seekBy(const Duration(seconds: 5)),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              SliderTheme(
-                                data: SliderTheme.of(context).copyWith(
-                                  trackHeight: 3,
-                                  thumbShape: const RoundSliderThumbShape(
-                                    enabledThumbRadius: 5,
-                                  ),
-                                  overlayShape: const RoundSliderOverlayShape(
-                                    overlayRadius: 10,
-                                  ),
-                                  activeTrackColor: AppColors.terracotta,
-                                  inactiveTrackColor: AppColors.sandstone,
-                                  thumbColor: AppColors.terracotta,
-                                ),
-                                child: Slider(
-                                  min: 0,
-                                  max: _duration.inMilliseconds > 0
-                                      ? _duration.inMilliseconds.toDouble()
-                                      : 1,
-                                  value: _position.inMilliseconds
-                                      .clamp(
-                                        0,
-                                        _duration.inMilliseconds > 0
-                                            ? _duration.inMilliseconds
-                                            : 1,
-                                      )
-                                      .toDouble(),
-                                  onChanged: (value) => setState(
-                                    () => _position = Duration(
-                                      milliseconds: value.toInt(),
-                                    ),
-                                  ),
-                                  onChangeEnd: (value) async =>
-                                      _audioPlayer.seek(
-                                        Duration(milliseconds: value.toInt()),
-                                      ),
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                ),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      _formatDuration(_position),
-                                      style: const TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.black45,
-                                      ),
-                                    ),
-                                    Text(
-                                      _formatDuration(_duration),
-                                      style: const TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.black45,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                  InkWell(
-                    onTap: () async {
-                      if (isPlaying) await _audioPlayer.pause();
-                      if (!context.mounted) return;
-
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => NowPlayingScreen(
-                            monumentId: widget.monumentId,
-                            initialPois: _inRangePois.isNotEmpty
-                                ? _inRangePois
-                                : null,
-                          ),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: const BoxDecoration(
-                        border: Border(top: BorderSide(color: Colors.black12)),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            _inRangePois.length > 1
-                                ? 'View ${_inRangePois.length} nearby'
-                                : 'View manual list',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black54,
+                    ),
+
+                    // Bottom Navigation Bar
+                    InkWell(
+                      onTap: () async {
+                        if (isPlaying) await _audioPlayer.pause();
+                        if (!context.mounted) return;
+
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => NowPlayingScreen(
+                              monumentId: widget.monumentId,
+                              initialPois: _monumentPois.isNotEmpty ? _monumentPois : null,
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          const Icon(
-                            Icons.keyboard_arrow_up,
-                            size: 16,
-                            color: Colors.black54,
+                        );
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? Colors.black.withOpacity(0.25)
+                              : Colors.white.withOpacity(0.6),
+                          border: Border(
+                            top: BorderSide(
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.06)
+                                  : Colors.black.withOpacity(0.06),
+                            ),
                           ),
-                        ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.keyboard_arrow_up,
+                              size: 16,
+                              color: isDark
+                                  ? const Color(0xFFE5A17D).withOpacity(0.85)
+                                  : AppColors.terracotta,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _inRangePois.length > 1
+                                  ? 'View ${_inRangePois.length} nearby in player'
+                                  : 'Open Now Playing & Guide',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: isDark
+                                    ? Colors.white.withOpacity(0.8)
+                                    : AppColors.maroon,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+        ),
       ),
+    );
+      },
     );
   }
 }
@@ -778,10 +1150,12 @@ class _PointDetectScreenState extends State<PointDetectScreen> {
 class _SensorPermissionPrompt extends StatelessWidget {
   final bool isRequesting;
   final VoidCallback onRequest;
+  final bool isDark;
 
   const _SensorPermissionPrompt({
     required this.isRequesting,
     required this.onRequest,
+    required this.isDark,
   });
 
   @override
@@ -789,49 +1163,83 @@ class _SensorPermissionPrompt extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.explore, size: 72, color: AppColors.terracotta),
-            const SizedBox(height: 20),
-            const Text(
-              'Ready to find nearby stories',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: AppColors.maroon,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF231D21) : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isDark ? Colors.white.withOpacity(0.08) : AppColors.lightBorder,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isDark ? Colors.black.withOpacity(0.4) : AppColors.terracotta.withOpacity(0.08),
+                blurRadius: 20,
               ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'DishaVaani needs your location and compass to detect monuments around you.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.black54),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: isRequesting ? null : onRequest,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.maroon,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.explore,
+                size: 72,
+                color: isDark ? const Color(0xFFE5A17D) : AppColors.terracotta,
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Ready to find nearby stories',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Georgia',
+                  color: isDark ? Colors.white : AppColors.maroon,
                 ),
-                child: isRequesting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Text('ALLOW LOCATION + COMPASS'),
               ),
-            ),
-          ],
+              const SizedBox(height: 10),
+              Text(
+                'DishaVaani needs your location and compass to detect monuments around you.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isDark ? Colors.white.withOpacity(0.65) : AppColors.lightTextSecondary,
+                  fontSize: 13.5,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: isRequesting ? null : onRequest,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isDark ? const Color(0xFF752433) : AppColors.maroon,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: isRequesting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'ALLOW LOCATION + COMPASS',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -12,6 +12,7 @@ import 'device_identity.dart';
 import 'real_itinerary_update_port.dart';
 import 'secrets.dart';
 
+
 class ItineraryService {
   static final CollectionReference _itinerariesRef = FirebaseFirestore.instance
       .collection('itineraries');

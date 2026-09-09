@@ -1,4 +1,4 @@
-// now_playing.dart — screen 4: current POI + live heading-ranked queue
+// now_playing.dart — DishaVaani glass/Spotify-style now playing screen
 import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
@@ -12,7 +12,7 @@ import '../services/sensor.dart';
 import '../services/profile_store.dart';
 import '../services/scripting_settings.dart';
 import '../services/translation.dart';
-import '../widgets/volume_button.dart';
+import '../widgets/theme_mode_toggle.dart';
 import 'manual_poi_list.dart';
 
 class NowPlayingScreen extends StatefulWidget {
@@ -32,25 +32,51 @@ class NowPlayingScreen extends StatefulWidget {
 class _NowPlayingScreenState extends State<NowPlayingScreen> {
   final PoiService _poiService = PoiService();
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final SensorService _sensorService = SensorService();
+  final ScrollController _scriptScrollController = ScrollController();
   final Map<String, String> _dynamicAudioCache = {};
 
-  final SensorService _sensorService = SensorService();
   StreamSubscription<SensorReading>? _sensorSub;
+  Timer? _resumeAutoScrollTimer;
 
-  bool isPlaying = false;
-  bool isLoading = true;
-  bool isResolvingAudio = false;
-  String? errorMessage;
-
-  Poi? currentPoi;
-  List<Poi> queue = [];
   List<Poi> _allPois = [];
+  List<Poi> queue = [];
+  Poi? currentPoi;
 
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
 
-  double heading =
-      214.0; // fallback until the first real sensor reading arrives
+  double heading = 214.0;
+  bool isPlaying = false;
+  bool isLoading = true;
+  bool isResolvingAudio = false;
+  bool _userIsScrolling = false;
+  String? errorMessage;
+  String? _loadedPoiId;
+  double _playbackSpeed = 1.0;
+  final Set<String> _favoritePoiIds = {};
+
+  void _togglePlaybackSpeed() {
+    const speeds = [1.0, 1.2, 1.5, 2.0, 0.8];
+    final currentIndex = speeds.indexOf(_playbackSpeed);
+    final nextIndex = (currentIndex + 1) % speeds.length;
+    setState(() {
+      _playbackSpeed = speeds[nextIndex];
+    });
+    _audioPlayer.setPlaybackRate(_playbackSpeed);
+  }
+
+  String _getMonumentDisplayName() {
+    if (widget.monumentId.toLowerCase() == 'qutub_minar') {
+      return 'Qutub Minar';
+    }
+    return widget.monumentId
+        .replaceAll('_', ' ')
+        .split(' ')
+        .where((w) => w.isNotEmpty)
+        .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+        .join(' ');
+  }
 
   @override
   void initState() {
@@ -61,77 +87,54 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       setState(() => isPlaying = state == PlayerState.playing);
     });
 
+    _audioPlayer.onPositionChanged.listen((position) {
+      if (!mounted) return;
+      setState(() => _position = position);
+      _autoScrollScript();
+    });
+
+    _audioPlayer.onDurationChanged.listen((duration) {
+      if (!mounted) return;
+      setState(() => _duration = duration);
+    });
+
     _audioPlayer.onPlayerComplete.listen((_) {
       if (!mounted) return;
       setState(() => isPlaying = false);
-    });
-
-    _audioPlayer.onPositionChanged.listen((pos) {
-      if (!mounted) return;
-      setState(() => _position = pos);
-    });
-
-    _audioPlayer.onDurationChanged.listen((dur) {
-      if (!mounted) return;
-      setState(() => _duration = dur);
     });
 
     _loadPois();
     _startSensors();
   }
 
-  Future<void> _startSensors() async {
-    try {
-      await _sensorService.start();
-      _sensorSub = _sensorService.readings.listen((reading) {
-        if (!mounted) return;
-        setState(() => heading = reading.heading);
-        _rerankQueue();
-      });
-    } catch (e) {
-      debugPrint('NowPlayingScreen: sensors unavailable: $e');
-    }
-  }
-
   @override
   void dispose() {
+    _resumeAutoScrollTimer?.cancel();
     _sensorSub?.cancel();
     _sensorService.dispose();
+    _scriptScrollController.dispose();
     _audioPlayer.dispose();
     super.dispose();
   }
 
+  // ---------------------------------------------------------------------------
+  // Data / heading ranking
+  // ---------------------------------------------------------------------------
+
   Future<void> _loadPois() async {
-    if (widget.initialPois != null) {
-      _allPois = List<Poi>.from(widget.initialPois!);
-
-      if (_allPois.isEmpty) {
-        setState(() {
-          currentPoi = null;
-          queue = [];
-          isLoading = false;
-        });
-        return;
-      }
-
-      setState(() {
-        currentPoi = _allPois.first;
-        queue = _allPois.skip(1).toList();
-        isLoading = false;
-      });
-      return;
-    }
-
     setState(() {
       isLoading = true;
       errorMessage = null;
     });
 
     try {
-      final pois = await _poiService.fetchPoisByMonument(widget.monumentId);
+      final pois = widget.initialPois != null
+          ? List<Poi>.from(widget.initialPois!)
+          : await _poiService.fetchPoisByMonument(widget.monumentId);
+
       if (!mounted) return;
 
-      _allPois = List<Poi>.from(pois);
+      _allPois = pois;
 
       if (_allPois.isEmpty) {
         setState(() {
@@ -146,12 +149,25 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       _rerankQueue();
 
       setState(() => isLoading = false);
-    } catch (error) {
+    } catch (e) {
       if (!mounted) return;
       setState(() {
-        errorMessage = error.toString();
+        errorMessage = e.toString();
         isLoading = false;
       });
+    }
+  }
+
+  Future<void> _startSensors() async {
+    try {
+      await _sensorService.start();
+      _sensorSub = _sensorService.readings.listen((reading) {
+        if (!mounted) return;
+        setState(() => heading = reading.heading);
+        _rerankQueue();
+      });
+    } catch (e) {
+      debugPrint('DishaVaani heading sensor unavailable: $e');
     }
   }
 
@@ -169,11 +185,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     return diff;
   }
 
-  void _rerankQueue({bool autoPlayChangedItem = false}) {
+  void _rerankQueue() {
     if (_allPois.isEmpty) return;
 
     final selectedId = currentPoi?.id;
-    final candidates = _allPois.where((poi) => poi.id != selectedId).toList();
+    final candidates = _allPois
+        .where((poi) => poi.id != selectedId)
+        .toList();
 
     candidates.sort((a, b) {
       final ia = _allPois.indexOf(a);
@@ -183,361 +201,862 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       return scoreA.compareTo(scoreB);
     });
 
-    final oldFirst = queue.isNotEmpty ? queue.first.id : null;
-
     if (!mounted) return;
     setState(() => queue = candidates);
-
-    if (autoPlayChangedItem && queue.isNotEmpty && queue.first.id != oldFirst) {
-      _playPoi(queue.first);
-    }
   }
+
+  // ---------------------------------------------------------------------------
+  // Audio
+  // ---------------------------------------------------------------------------
 
   Future<String?> _resolveAudioUrl(Poi poi, {bool showLoading = false}) async {
     final lang = AppSettings.selectedLanguage;
-    final isDynamic = ScriptingSettings().isDynamicScriptingEnabled;
+    final dynamicScripting = ScriptingSettings().isDynamicScriptingEnabled;
 
-    if (isDynamic) {
+    if (dynamicScripting) {
       final cacheKey = '${poi.id}_$lang';
       if (_dynamicAudioCache.containsKey(cacheKey)) {
-        return _dynamicAudioCache[cacheKey]!;
+        return _dynamicAudioCache[cacheKey];
       }
 
-      if (showLoading) setState(() => isResolvingAudio = true);
+      if (showLoading && mounted) {
+        setState(() => isResolvingAudio = true);
+      }
+
       try {
         final profile = await ProfileStore().loadProfile();
         final profileMap = profile.weights.isNotEmpty ? profile.toJson() : null;
 
-        final audioUrl = await TranslationService().getTranslatedAudioUrl(
+        final url = await TranslationService().getTranslatedAudioUrl(
           poiId: poi.id,
           sourceScript: poi.getScript('en'),
           sourceLang: 'en',
           targetLanguage: lang,
           interestProfile: profileMap,
           onScriptResolved: (script) {
-            if (mounted) {
-              setState(() => poi.scripts[lang] = script);
-            } else {
-              poi.scripts[lang] = script;
-            }
+            poi.scripts[lang] = script;
+            if (mounted) setState(() {});
           },
         );
-        _dynamicAudioCache[cacheKey] = audioUrl;
-        poi.audioUrls[lang] = audioUrl;
-        return audioUrl;
+
+        _dynamicAudioCache[cacheKey] = url;
+        poi.audioUrls[lang] = url;
+        return url;
       } catch (e) {
         debugPrint('Dynamic audio resolution failed: $e');
-        return poi.getAudioUrl(lang).trim();
+        final fallback = poi.getAudioUrl(lang).trim();
+        return fallback.isEmpty ? null : fallback;
       } finally {
-        if (showLoading && mounted) setState(() => isResolvingAudio = false);
-      }
-    } else {
-      // Dynamic scripting disabled: use Read Aloud TTS narration
-      final readAloudCacheKey = '${poi.id}_${lang}_read_aloud';
-      if (_dynamicAudioCache.containsKey(readAloudCacheKey)) {
-        return _dynamicAudioCache[readAloudCacheKey]!;
-      }
-
-      final cachedReadAloud = poi.getReadAloudUrl(lang);
-      if (cachedReadAloud.isNotEmpty) {
-        _dynamicAudioCache[readAloudCacheKey] = cachedReadAloud;
-        return cachedReadAloud;
-      }
-
-      final englishScript = poi.getScript('en');
-      if (englishScript.isNotEmpty) {
-        if (showLoading) setState(() => isResolvingAudio = true);
-        try {
-          final audioUrl = await TranslationService().getTranslatedAudioUrl(
-            poiId: poi.id,
-            sourceScript: englishScript,
-            sourceLang: 'en',
-            targetLanguage: lang,
-            interestProfile: null,
-            readAloud: true,
-            onScriptResolved: (script) {
-              if (mounted) {
-                setState(() => poi.scripts[lang] = script);
-              } else {
-                poi.scripts[lang] = script;
-              }
-            },
-          );
-          _dynamicAudioCache[readAloudCacheKey] = audioUrl;
-          poi.readAloudUrls[lang] = audioUrl;
-          return audioUrl;
-        } catch (e) {
-          debugPrint('Read aloud resolution failed: $e');
-        } finally {
-          if (showLoading && mounted) setState(() => isResolvingAudio = false);
+        if (showLoading && mounted) {
+          setState(() => isResolvingAudio = false);
         }
       }
-
-      final staticUrl = poi.getAudioUrl(lang).trim();
-      return staticUrl.isNotEmpty ? staticUrl : null;
     }
-  }
 
-  Future<void> _playPoi(Poi poi) async {
-    final audioUrl = await _resolveAudioUrl(poi, showLoading: false);
-    if (audioUrl == null || audioUrl.isEmpty) return;
+    final readAloudKey = '${poi.id}_${lang}_read_aloud';
+    if (_dynamicAudioCache.containsKey(readAloudKey)) {
+      return _dynamicAudioCache[readAloudKey];
+    }
 
-    try {
-      await _audioPlayer.stop();
-      setState(() {
-        _position = Duration.zero;
-        _duration = Duration.zero;
-      });
-      await _audioPlayer.play(UrlSource(audioUrl));
-    } catch (_) {}
+    final cachedReadAloud = poi.getReadAloudUrl(lang).trim();
+    if (cachedReadAloud.isNotEmpty) {
+      _dynamicAudioCache[readAloudKey] = cachedReadAloud;
+      return cachedReadAloud;
+    }
+
+    final englishScript = poi.getScript('en').trim();
+    if (englishScript.isNotEmpty) {
+      if (showLoading && mounted) {
+        setState(() => isResolvingAudio = true);
+      }
+
+      try {
+        final url = await TranslationService().getTranslatedAudioUrl(
+          poiId: poi.id,
+          sourceScript: englishScript,
+          sourceLang: 'en',
+          targetLanguage: lang,
+          interestProfile: null,
+          readAloud: true,
+          onScriptResolved: (script) {
+            poi.scripts[lang] = script;
+            if (mounted) setState(() {});
+          },
+        );
+
+        _dynamicAudioCache[readAloudKey] = url;
+        poi.readAloudUrls[lang] = url;
+        return url;
+      } catch (e) {
+        debugPrint('Read aloud resolution failed: $e');
+      } finally {
+        if (showLoading && mounted) {
+          setState(() => isResolvingAudio = false);
+        }
+      }
+    }
+
+    final staticUrl = poi.getAudioUrl(lang).trim();
+    return staticUrl.isEmpty ? null : staticUrl;
   }
 
   Future<void> _togglePlayback(Poi poi) async {
-    final audioUrl = await _resolveAudioUrl(poi, showLoading: true);
+    final url = await _resolveAudioUrl(poi, showLoading: true);
 
-    if (audioUrl == null || audioUrl.isEmpty) {
+    if (url == null || url.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No audio URL is available for this POI.'),
-        ),
+        const SnackBar(content: Text('No audio is available for this POI.')),
       );
       return;
     }
 
     try {
-      if (isPlaying) {
+      if (isPlaying && _loadedPoiId == poi.id) {
         await _audioPlayer.pause();
-      } else {
-        await _audioPlayer.play(UrlSource(audioUrl));
+        return;
       }
-    } catch (error) {
+
+      if (_loadedPoiId == poi.id && _position > Duration.zero) {
+        await _audioPlayer.resume();
+        return;
+      }
+
+      _loadedPoiId = poi.id;
+      await _audioPlayer.play(UrlSource(url));
+    } catch (e) {
       if (!mounted) return;
       setState(() => isPlaying = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not play audio: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not play audio: $e')),
+      );
     }
-  }
-
-  Future<void> _seekBy(Duration delta) async {
-    final maxMs = _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 0;
-    final newMs = (_position.inMilliseconds + delta.inMilliseconds).clamp(
-      0,
-      maxMs,
-    );
-    final newPosition = Duration(milliseconds: newMs);
-    setState(() => _position = newPosition);
-    await _audioPlayer.seek(newPosition);
   }
 
   Future<void> _selectPoi(Poi poi) async {
     await _audioPlayer.stop();
+
     if (!mounted) return;
+
+    _resumeAutoScrollTimer?.cancel();
+    if (_scriptScrollController.hasClients) {
+      _scriptScrollController.jumpTo(0);
+    }
 
     setState(() {
       currentPoi = poi;
       isPlaying = false;
       _position = Duration.zero;
       _duration = Duration.zero;
+      _loadedPoiId = null;
+      _userIsScrolling = false;
     });
 
     _rerankQueue();
-    await _playPoi(poi);
+    await _togglePlayback(poi);
   }
 
-  String _formatDuration(Duration d) {
-    final minutes = d.inMinutes.remainder(60).toString().padLeft(1, '0');
-    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+  Future<void> _seekBy(Duration delta) async {
+    final maxMs = _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 0;
+    final newMs = (_position.inMilliseconds + delta.inMilliseconds).clamp(0, maxMs);
+    final position = Duration(milliseconds: newMs);
+    setState(() => _position = position);
+    await _audioPlayer.seek(position);
+  }
+
+  Future<void> _skipToNext() async {
+    if (queue.isEmpty) return;
+    await _selectPoi(queue.first);
+  }
+
+  Future<void> _skipToPrevious() async {
+    if (_allPois.isEmpty || currentPoi == null) return;
+    final index = _allPois.indexOf(currentPoi!);
+    if (index > 0) {
+      await _selectPoi(_allPois[index - 1]);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Script scrolling — follows audio progress but pauses when user scrolls.
+  // ---------------------------------------------------------------------------
+
+  void _handleManualScroll() {
+    _userIsScrolling = true;
+    _resumeAutoScrollTimer?.cancel();
+    _resumeAutoScrollTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      setState(() => _userIsScrolling = false);
+      _autoScrollScript();
+    });
+  }
+
+  void _autoScrollScript() {
+    if (_userIsScrolling || !_scriptScrollController.hasClients) return;
+    if (_duration.inMilliseconds <= 0) return;
+
+    final maxScroll = _scriptScrollController.position.maxScrollExtent;
+    if (maxScroll <= 0) return;
+
+    final progress = (_position.inMilliseconds / _duration.inMilliseconds)
+        .clamp(0.0, 1.0);
+    final target = maxScroll * progress;
+
+    _scriptScrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOut,
+    );
+  }
+
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes.toString().padLeft(1, '0');
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (isLoading) {
-      return Scaffold(
-        appBar: _appBar(),
-        body: const Center(
-          child: CircularProgressIndicator(color: AppColors.terracotta),
+  // ---------------------------------------------------------------------------
+  // Images
+  // ---------------------------------------------------------------------------
+
+  String? _poiAssetPath(Poi poi) {
+    final name = poi.name.toLowerCase();
+    final id = poi.id.toLowerCase();
+
+    // 1. Specific Qutub Minar POIs
+    if (name.contains('wall') || name.contains('carving') || id.contains('carving')) {
+      return 'assets/images/qutub_wall_carving.png';
+    } else if (name.contains('iron') || id.contains('iron')) {
+      return 'assets/images/qutub_iron_pillar.jpg';
+    } else if (name.contains('darwaza') || id.contains('darwaza')) {
+      return 'assets/images/qutub_alai_darwaza.jpg';
+    } else if (name.contains('chirantana') ||
+        id.contains('chirantana') ||
+        name.contains('quwwat') ||
+        id.contains('quwwat') ||
+        name.contains('mosque') ||
+        id.contains('mosque') ||
+        name.contains('room')) {
+      return 'assets/images/quwwat_ul_islam.jpg';
+    } else if (name.contains('victory') ||
+        name.contains('tower') ||
+        id.contains('tower') ||
+        id == 'qutub_minar_tower') {
+      return 'assets/images/qutub_minar_tower.jpg';
+    }
+
+    // 2. Other Monument POIs
+    if (name.contains('lahori') ||
+        id.contains('lahori') ||
+        name.contains('diwan') ||
+        id.contains('diwan') ||
+        name.contains('red fort') ||
+        id.contains('red_fort')) {
+      return 'assets/images/red_fort_lahori_gate.jpg';
+    } else if (name.contains('humayun') ||
+        id.contains('humayun') ||
+        name.contains('charbagh') ||
+        id.contains('charbagh')) {
+      return 'assets/images/humayuns_tomb.jpg';
+    } else if (name.contains('india gate') ||
+        id.contains('india_gate') ||
+        name.contains('amar jawan') ||
+        id.contains('memorial')) {
+      return 'assets/images/india_gate.jpg';
+    } else if (name.contains('baoli') ||
+        id.contains('baoli') ||
+        name.contains('agrasen') ||
+        id.contains('agrashan')) {
+      return 'assets/images/agrasen_ki_baoli.jpg';
+    } else if (name.contains('jama') || id.contains('jama')) {
+      return 'assets/images/jama_masjid.jpg';
+    }
+
+    // Fallback for any Qutub Minar POI
+    if (poi.monumentId.toLowerCase().contains('qutub')) {
+      return 'assets/images/qutub_minar_tower.jpg';
+    }
+
+    return null;
+  }
+
+  String _poiImageUrl(Poi poi) {
+    final name = poi.name.toLowerCase();
+    final id = poi.id.toLowerCase();
+    if (name.contains('iron') || id.contains('iron')) {
+      return 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Iron_Pillar_of_Delhi.jpg/400px-Iron_Pillar_of_Delhi.jpg';
+    } else if (name.contains('victory') || name.contains('tower') || id.contains('tower')) {
+      return 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Qutb_Minar.jpg/400px-Qutb_Minar.jpg';
+    } else if (name.contains('darwaza') || id.contains('darwaza')) {
+      return 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Alai_Darwaza%2C_Qutb_Complex%2C_Delhi.jpg/400px-Alai_Darwaza%2C_Qutb_Complex%2C_Delhi.jpg';
+    } else if (name.contains('chirantana') || id.contains('chirantana') || name.contains('room')) {
+      return 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Quwwat-ul-Islam_Mosque_Qutb_complex.jpg/400px-Quwwat-ul-Islam_Mosque_Qutb_complex.jpg';
+    }
+    return 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Qutb_Minar.jpg/800px-Qutb_Minar.jpg';
+  }
+
+  Widget _poiImage(Poi poi) {
+    final assetPath = _poiAssetPath(poi);
+
+    if (assetPath != null) {
+      return Image.asset(
+        assetPath,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (context, error, stackTrace) => Image.network(
+          _poiImageUrl(poi),
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (context, error, stackTrace) => _imageFallback(),
         ),
       );
     }
 
-    if (errorMessage != null) {
-      return Scaffold(
-        appBar: _appBar(),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.cloud_off,
-                  color: AppColors.terracotta,
-                  size: 54,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Could not load POIs from Firebase.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                    color: AppColors.maroon,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(errorMessage!, textAlign: TextAlign.center),
-                const SizedBox(height: 20),
-                ElevatedButton.icon(
-                  onPressed: _loadPois,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Retry'),
-                ),
-              ],
+    return Image.network(
+      _poiImageUrl(poi),
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return const Center(
+          child: CircularProgressIndicator(
+            color: Colors.white38,
+            strokeWidth: 2,
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) => _imageFallback(),
+    );
+  }
+
+  Widget _poiThumbnail(Poi poi) {
+    final assetPath = _poiAssetPath(poi);
+
+    if (assetPath != null) {
+      return Image.asset(
+        assetPath,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Image.network(
+          _poiImageUrl(poi),
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => _thumbnailFallback(),
+        ),
+      );
+    }
+
+    return Image.network(
+      _poiImageUrl(poi),
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          color: const Color(0xFF2C2226),
+          child: const Center(
+            child: SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                color: Colors.white38,
+                strokeWidth: 1.5,
+              ),
             ),
           ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) => _thumbnailFallback(),
+    );
+  }
+
+  Widget _imageFallback() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF5A312B), Color(0xFF26181B)],
         ),
-      );
-    }
-
-    if (currentPoi == null) {
-      return Scaffold(
-        appBar: _appBar(),
-        body: const Center(
-          child: Text('No POIs were found in the Firestore collection "pois".'),
+      ),
+      child: const Center(
+        child: Icon(
+          Icons.account_balance_rounded,
+          size: 54,
+          color: Colors.white38,
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    final poi = currentPoi!;
+  Widget _thumbnailFallback() {
+    return Container(
+      color: const Color(0xFF2C2226),
+      child: const Center(
+        child: Icon(
+          Icons.image_outlined,
+          size: 20,
+          color: Colors.white38,
+        ),
+      ),
+    );
+  }
 
-    return Scaffold(
-      appBar: _appBar(
-        onListPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ManualPoiListScreen(
-                pois: [poi, ...queue],
-                onPoiSelected: _selectPoi,
+  // ---------------------------------------------------------------------------
+  // UI
+  // ---------------------------------------------------------------------------
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: AppSettings.themeModeNotifier,
+      builder: (context, _, child) {
+        final isDark = AppSettings.isDarkMode;
+
+        if (isLoading) {
+          return Scaffold(
+            backgroundColor: isDark ? const Color(0xFF141215) : AppColors.lightBgMid,
+            appBar: _appBar(isDark: isDark),
+            body: Center(
+              child: CircularProgressIndicator(
+                color: isDark ? const Color(0xFFE5A17D) : AppColors.terracotta,
               ),
             ),
           );
-        },
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _nowPlayingCard(poi),
-            const SizedBox(height: 18),
-            const Text(
-              'UP NEXT (live ranked by heading)',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.black54,
-                letterSpacing: 0.5,
+        }
+
+        if (errorMessage != null) {
+          return Scaffold(
+            backgroundColor: isDark ? const Color(0xFF141215) : AppColors.lightBgMid,
+            appBar: _appBar(isDark: isDark),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.cloud_off,
+                      size: 52,
+                      color: isDark ? const Color(0xFFE5A17D) : AppColors.terracotta,
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Could not load the POIs.',
+                      style: TextStyle(
+                        color: isDark ? Colors.white : AppColors.maroon,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Georgia',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      errorMessage!,
+                      style: TextStyle(
+                        color: isDark ? Colors.white70 : AppColors.lightTextSecondary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 18),
+                    ElevatedButton.icon(
+                      onPressed: _loadPois,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: queue.isEmpty
-                  ? const Center(
-                      child: Text('No other POIs are currently in the queue.'),
-                    )
-                  : ListView.separated(
-                      itemCount: queue.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        final queuedPoi = queue[index];
-                        final bearing = _virtualBearing(
-                          queuedPoi,
-                          _allPois.indexOf(queuedPoi),
-                        );
-                        final angle = _angleDifference(heading, bearing);
+          );
+        }
 
-                        return InkWell(
-                          onTap: () => _selectPoi(queuedPoi),
-                          borderRadius: BorderRadius.circular(10),
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: index == 0
-                                  ? AppColors.gold.withOpacity(0.18)
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: index == 0
-                                    ? AppColors.terracotta
-                                    : Colors.black12,
-                                width: index == 0 ? 2 : 1,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  backgroundColor: AppColors.sandstone,
-                                  child: Text(
-                                    '${index + 1}',
-                                    style: const TextStyle(
-                                      color: AppColors.maroon,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        queuedPoi.name,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 3),
-                                      Text(
-                                        'Bearing ${bearing.toInt()}°  •  ${angle.toInt()}° away',
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.black54,
-                                        ),
-                                      ),
-                                      if (queuedPoi
-                                          .getScript(
-                                            AppSettings.selectedLanguage,
-                                          )
-                                          .isNotEmpty)
-                                        Text(
-                                          queuedPoi.getScript(
-                                            AppSettings.selectedLanguage,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.black54,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                                index == 0
-                                    ? VolumeButton(audioPlayer: _audioPlayer)
-                                    : const Icon(
-                                        Icons.play_arrow,
-                                        color: AppColors.terracotta,
-                                      ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
+        if (currentPoi == null) {
+          return Scaffold(
+            backgroundColor: isDark ? const Color(0xFF141215) : AppColors.lightBgMid,
+            appBar: _appBar(isDark: isDark),
+            body: Center(
+              child: Text(
+                'No POIs were found for this monument.',
+                style: TextStyle(
+                  color: isDark ? Colors.white70 : AppColors.lightTextSecondary,
+                ),
+              ),
+            ),
+          );
+        }
+
+        final poi = currentPoi!;
+
+        return Scaffold(
+          backgroundColor: isDark ? const Color(0xFF141215) : AppColors.lightBgMid,
+          appBar: _appBar(
+            isDark: isDark,
+            onListPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ManualPoiListScreen(
+                    pois: [poi, ...queue],
+                    onPoiSelected: _selectPoi,
+                  ),
+                ),
+              );
+            },
+          ),
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: isDark
+                    ? [
+                        AppColors.darkBgTop,
+                        AppColors.darkBgMid,
+                        AppColors.darkBgBottom,
+                      ]
+                    : [
+                        AppColors.lightBgTop,
+                        AppColors.lightBgMid,
+                        AppColors.lightBgBottom,
+                      ],
+              ),
+            ),
+            child: SafeArea(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
+                children: [
+                  _buildNowPlayingCard(poi, isDark),
+                  const SizedBox(height: 18),
+                  _buildUpNextHeader(isDark),
+                  const SizedBox(height: 10),
+                  ..._buildQueueItems(isDark),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  AppBar _appBar({VoidCallback? onListPressed, required bool isDark}) {
+    return AppBar(
+      elevation: 0,
+      backgroundColor: Colors.transparent,
+      foregroundColor: isDark ? Colors.white : AppColors.maroon,
+      centerTitle: true,
+      leading: IconButton(
+        icon: Icon(
+          Icons.arrow_back_ios_new_rounded,
+          color: isDark ? Colors.white70 : AppColors.maroon,
+          size: 20,
+        ),
+        onPressed: () => Navigator.maybePop(context),
+      ),
+      title: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'DishaVaani',
+            style: TextStyle(
+              color: isDark ? Colors.white : AppColors.maroon,
+              fontFamily: 'Georgia',
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            _getMonumentDisplayName(),
+            style: TextStyle(
+              color: isDark ? Colors.white.withOpacity(0.6) : AppColors.lightTextSecondary,
+              fontSize: 12,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        if (onListPressed != null)
+          IconButton(
+            onPressed: onListPressed,
+            icon: Icon(
+              Icons.format_list_bulleted_rounded,
+              color: isDark ? Colors.white70 : AppColors.maroon,
+              size: 22,
+            ),
+          ),
+        const ThemeModeToggle(),
+        const SizedBox(width: 8),
+      ],
+    );
+  }
+
+  Widget _buildNowPlayingCard(Poi poi, bool isDark) {
+    final lang = AppSettings.selectedLanguage;
+    final script = poi.getScript(lang).trim().isNotEmpty
+        ? poi.getScript(lang).trim()
+        : poi.getScript('en').trim();
+
+    final positionMs = _position.inMilliseconds.clamp(
+      0,
+      _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 1,
+    );
+    final durationMs = _duration.inMilliseconds > 0
+        ? _duration.inMilliseconds.toDouble()
+        : 1.0;
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF231D21) : Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: isDark ? Colors.white.withOpacity(0.08) : AppColors.lightBorder,
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark
+                ? Colors.black.withOpacity(0.35)
+                : AppColors.terracotta.withOpacity(0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+        child: Column(
+          children: [
+            // Top Monument Image
+            ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: SizedBox(
+                width: double.infinity,
+                height: 195,
+                child: _poiImage(poi),
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            // Title, Subtitle, and Favorite Heart Icon
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40),
+                  child: Column(
+                    children: [
+                      Text(
+                        poi.name,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                          fontSize: 21,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Georgia',
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _getMonumentDisplayName(),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: isDark
+                              ? Colors.white.withOpacity(0.55)
+                              : AppColors.lightTextSecondary,
+                          fontSize: 12.5,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: IconButton(
+                    icon: Icon(
+                      _favoritePoiIds.contains(poi.id)
+                          ? Icons.favorite
+                          : Icons.favorite_border,
+                      color: _favoritePoiIds.contains(poi.id)
+                          ? (isDark ? const Color(0xFFE27D60) : AppColors.crimsonAction)
+                          : (isDark ? Colors.white70 : Colors.black45),
+                      size: 22,
                     ),
+                    onPressed: () {
+                      setState(() {
+                        if (_favoritePoiIds.contains(poi.id)) {
+                          _favoritePoiIds.remove(poi.id);
+                        } else {
+                          _favoritePoiIds.add(poi.id);
+                        }
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            // Description / Narration Script (centered, scrollable)
+            Container(
+              width: double.infinity,
+              height: 94,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (notification) {
+                  if (notification is ScrollUpdateNotification) {
+                    if (notification.dragDetails != null) {
+                      _handleManualScroll();
+                    }
+                  }
+                  return false;
+                },
+                child: SingleChildScrollView(
+                  controller: _scriptScrollController,
+                  physics: const BouncingScrollPhysics(),
+                  child: Text(
+                    script.isEmpty ? 'No narration text available.' : script,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: isDark ? Colors.white.withOpacity(0.72) : Colors.black87,
+                      fontSize: 13.5,
+                      height: 1.45,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 4),
+
+            // Progress Slider
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 2.8,
+                activeTrackColor: isDark ? const Color(0xFFE5A17D) : AppColors.terracotta,
+                inactiveTrackColor: isDark ? Colors.white24 : Colors.black12,
+                thumbColor: isDark ? const Color(0xFFE5A17D) : AppColors.terracotta,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5.5),
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 11),
+              ),
+              child: Slider(
+                min: 0,
+                max: durationMs,
+                value: positionMs.toDouble().clamp(0.0, durationMs).toDouble(),
+                onChanged: (value) {
+                  setState(() {
+                    _position = Duration(milliseconds: value.toInt());
+                  });
+                },
+                onChangeEnd: (value) {
+                  _audioPlayer.seek(Duration(milliseconds: value.toInt()));
+                },
+              ),
+            ),
+
+            // Time stamps
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    _formatDuration(_position),
+                    style: TextStyle(
+                      color: isDark ? Colors.white.withOpacity(0.55) : AppColors.lightTextSecondary,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                  Text(
+                    _formatDuration(_duration),
+                    style: TextStyle(
+                      color: isDark ? Colors.white.withOpacity(0.55) : AppColors.lightTextSecondary,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 6),
+
+            // Controls row: Replay 15, Prev, Play/Pause, Next, Forward 15
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _replay15Button(isDark),
+                IconButton(
+                  onPressed: _skipToPrevious,
+                  icon: Icon(
+                    Icons.skip_previous,
+                    color: isDark ? Colors.white : AppColors.maroon,
+                    size: 32,
+                  ),
+                ),
+                _mainPlayButton(poi, isDark),
+                IconButton(
+                  onPressed: _skipToNext,
+                  icon: Icon(
+                    Icons.skip_next,
+                    color: isDark ? Colors.white : AppColors.maroon,
+                    size: 32,
+                  ),
+                ),
+                _forward15Button(isDark),
+              ],
+            ),
+
+            const SizedBox(height: 4),
+
+            // Bottom utility row: PIP icon & Speed button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton(
+                    onPressed: () {},
+                    icon: Icon(
+                      Icons.picture_in_picture_alt_outlined,
+                      color: isDark ? Colors.white.withOpacity(0.7) : AppColors.maroon,
+                      size: 22,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: _togglePlaybackSpeed,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isDark ? Colors.white24 : AppColors.lightBorder,
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Text(
+                        '${_playbackSpeed.toStringAsFixed(1)}x',
+                        style: TextStyle(
+                          color: isDark ? Colors.white : AppColors.maroon,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -545,189 +1064,284 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
-  AppBar _appBar({VoidCallback? onListPressed}) {
-    return AppBar(
-      backgroundColor: AppColors.maroon,
-      title: const Text('DishaVaani', style: TextStyle(color: Colors.white)),
-      actions: [
-        if (onListPressed != null)
-          IconButton(
-            icon: const Icon(Icons.list, color: Colors.white),
-            onPressed: onListPressed,
+  Widget _mainPlayButton(Poi poi, bool isDark) {
+    return GestureDetector(
+      onTap: isResolvingAudio ? null : () => _togglePlayback(poi),
+      child: Container(
+        width: 62,
+        height: 62,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: isDark ? const Color(0xFF752433) : AppColors.maroon,
+          boxShadow: [
+            BoxShadow(
+              color: (isDark ? const Color(0xFF752433) : AppColors.maroon).withOpacity(0.4),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: isResolvingAudio
+            ? const Padding(
+                padding: EdgeInsets.all(18),
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2.5,
+                ),
+              )
+            : Icon(
+                isPlaying && _loadedPoiId == poi.id
+                    ? Icons.pause
+                    : Icons.play_arrow,
+                color: Colors.white,
+                size: 34,
+              ),
+      ),
+    );
+  }
+
+  Widget _buildUpNextHeader(bool isDark) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          'Up Next',
+          style: TextStyle(
+            color: isDark ? Colors.white : AppColors.maroon,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'Georgia',
           ),
+        ),
+        Row(
+          children: [
+            Icon(
+              Icons.location_on_outlined,
+              size: 14,
+              color: isDark ? Colors.white.withOpacity(0.55) : AppColors.lightTextSecondary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              'Live ranked by heading',
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark ? Colors.white.withOpacity(0.55) : AppColors.lightTextSecondary,
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
 
-  Widget _nowPlayingCard(Poi poi) {
-    final isCurrentPlaying = isPlaying;
-    final script = poi.getScript(AppSettings.selectedLanguage).isNotEmpty
-        ? poi.getScript(AppSettings.selectedLanguage)
-        : poi.getScript('en');
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.terracotta, width: 2),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 3)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: AppColors.gold.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.temple_hindu,
-                  color: AppColors.maroon,
-                  size: 32,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      poi.name,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.maroon,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      script.isNotEmpty
-                          ? script
-                          : 'Description not available yet.',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: script.isNotEmpty
-                            ? Colors.black54
-                            : Colors.black45,
-                        fontStyle: script.isNotEmpty
-                            ? FontStyle.normal
-                            : FontStyle.italic,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+  List<Widget> _buildQueueItems(bool isDark) {
+    if (queue.isEmpty) {
+      return [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1B1E) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark ? Colors.white.withOpacity(0.04) : AppColors.lightBorder,
+            ),
           ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Align(
-              alignment: Alignment.center,
+          child: Center(
+            child: Text(
+              'No other POIs are currently in the queue.',
+              style: TextStyle(
+                color: isDark ? Colors.white54 : AppColors.lightTextSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ];
+    }
+
+    return List.generate(queue.length, (index) {
+      final queuedPoi = queue[index];
+      final allIndex = _allPois.indexOf(queuedPoi);
+      final bearing = _virtualBearing(queuedPoi, allIndex);
+      final angle = _angleDifference(heading, bearing);
+      final isFirst = index == 0;
+      final script = queuedPoi
+          .getScript(AppSettings.selectedLanguage)
+          .trim();
+
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 9),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => _selectPoi(queuedPoi),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: isFirst
+                    ? (isDark ? const Color(0xFF38252C) : const Color(0xFFFFF0E6))
+                    : (isDark ? const Color(0xFF1E1B1E) : Colors.white),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark
+                      ? (isFirst
+                          ? Colors.white.withOpacity(0.08)
+                          : Colors.white.withOpacity(0.04))
+                      : (isFirst
+                          ? AppColors.terracotta.withOpacity(0.3)
+                          : AppColors.lightBorder),
+                  width: 1,
+                ),
+              ),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.replay_5,
-                      color: AppColors.terracotta,
-                    ),
-                    iconSize: 26,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    onPressed: () => _seekBy(const Duration(seconds: -5)),
-                  ),
-                  const SizedBox(width: 20),
-                  GestureDetector(
-                    onTap: isResolvingAudio ? null : () => _togglePlayback(poi),
-                    child: Container(
-                      width: 48,
-                      height: 48,
-                      decoration: const BoxDecoration(
-                        color: AppColors.maroon,
-                        shape: BoxShape.circle,
+                  SizedBox(
+                    width: 16,
+                    child: Text(
+                      '${index + 1}',
+                      style: TextStyle(
+                        color: isDark
+                            ? Colors.white.withOpacity(0.65)
+                            : AppColors.lightTextSecondary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                       ),
-                      child: isResolvingAudio
-                          ? const Padding(
-                              padding: EdgeInsets.all(12),
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Icon(
-                              isCurrentPlaying ? Icons.pause : Icons.play_arrow,
-                              color: Colors.white,
-                              size: 26,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(22),
+                    child: SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: _poiThumbnail(queuedPoi),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          queuedPoi.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Bearing ${bearing.toInt()}°  •  ${angle.toInt()}° away',
+                          style: TextStyle(
+                            color: isDark
+                                ? Colors.white.withOpacity(0.55)
+                                : AppColors.lightTextSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                        if (script.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            script,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.38)
+                                  : Colors.black45,
+                              fontSize: 11,
                             ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 20),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.forward_5,
-                      color: AppColors.terracotta,
+                  const SizedBox(width: 8),
+                  if (isFirst)
+                    Icon(
+                      Icons.volume_up,
+                      color: isDark
+                          ? Colors.white.withOpacity(0.75)
+                          : AppColors.terracotta,
+                      size: 20,
+                    )
+                  else
+                    Icon(
+                      Icons.play_arrow,
+                      color: isDark
+                          ? Colors.white.withOpacity(0.75)
+                          : AppColors.terracotta,
+                      size: 22,
                     ),
-                    iconSize: 26,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    onPressed: () => _seekBy(const Duration(seconds: 5)),
-                  ),
                 ],
               ),
             ),
           ),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 4,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-              activeTrackColor: AppColors.terracotta,
-              inactiveTrackColor: AppColors.sandstone,
-              thumbColor: AppColors.terracotta,
-            ),
-            child: Slider(
-              min: 0,
-              max: _duration.inMilliseconds > 0
-                  ? _duration.inMilliseconds.toDouble()
-                  : 1,
-              value: _position.inMilliseconds
-                  .clamp(
-                    0,
-                    _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 1,
-                  )
-                  .toDouble(),
-              onChanged: (value) => setState(
-                () => _position = Duration(milliseconds: value.toInt()),
+        ),
+      );
+    });
+  }
+
+  Widget _replay15Button(bool isDark) {
+    final iconColor = isDark ? Colors.white : AppColors.maroon;
+
+    return IconButton(
+      onPressed: () => _seekBy(const Duration(seconds: -15)),
+      icon: Stack(
+        alignment: Alignment.center,
+        children: [
+          Icon(
+            Icons.replay,
+            color: iconColor,
+            size: 27,
+          ),
+          Positioned(
+            bottom: 6.5,
+            child: Text(
+              '15',
+              style: TextStyle(
+                color: iconColor.withOpacity(0.9),
+                fontSize: 8.5,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.5,
               ),
-              onChangeEnd: (value) async =>
-                  _audioPlayer.seek(Duration(milliseconds: value.toInt())),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _formatDuration(_position),
-                  style: const TextStyle(fontSize: 10, color: Colors.black45),
-                ),
-                Text(
-                  _formatDuration(_duration),
-                  style: const TextStyle(fontSize: 10, color: Colors.black45),
-                ),
-              ],
+        ],
+      ),
+    );
+  }
+
+  Widget _forward15Button(bool isDark) {
+    final iconColor = isDark ? Colors.white : AppColors.maroon;
+
+    return IconButton(
+      onPressed: () => _seekBy(const Duration(seconds: 15)),
+      icon: Stack(
+        alignment: Alignment.center,
+        children: [
+          Transform.scale(
+            scaleX: -1,
+            child: Icon(
+              Icons.replay,
+              color: iconColor,
+              size: 27,
+            ),
+          ),
+          Positioned(
+            bottom: 6.5,
+            child: Text(
+              '15',
+              style: TextStyle(
+                color: iconColor.withOpacity(0.9),
+                fontSize: 8.5,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.5,
+              ),
             ),
           ),
         ],

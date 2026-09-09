@@ -6,7 +6,12 @@ import '../core/constants/app_colors.dart';
 
 class VolumeButton extends StatefulWidget {
   final AudioPlayer audioPlayer;
-  const VolumeButton({super.key, required this.audioPlayer});
+  final bool isDark;
+  const VolumeButton({
+    super.key,
+    required this.audioPlayer,
+    this.isDark = false,
+  });
 
   @override
   State<VolumeButton> createState() => _VolumeButtonState();
@@ -51,16 +56,18 @@ class _VolumeButtonState extends State<VolumeButton> {
                 height: 44,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: widget.isDark ? const Color(0xFF231D21) : Colors.white,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: AppColors.terracotta.withOpacity(0.4),
+                    color: widget.isDark
+                        ? Colors.white.withOpacity(0.12)
+                        : AppColors.terracotta.withOpacity(0.4),
                   ),
-                  boxShadow: const [
+                  boxShadow: [
                     BoxShadow(
-                      color: Colors.black26,
+                      color: widget.isDark ? Colors.black54 : Colors.black26,
                       blurRadius: 8,
-                      offset: Offset(0, 3),
+                      offset: const Offset(0, 3),
                     ),
                   ],
                 ),
@@ -68,10 +75,10 @@ class _VolumeButtonState extends State<VolumeButton> {
                   builder: (context, setPopupState) {
                     return Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.volume_down,
                           size: 14,
-                          color: Colors.black45,
+                          color: widget.isDark ? Colors.white38 : Colors.black45,
                         ),
                         Expanded(
                           child: SliderTheme(
@@ -83,9 +90,11 @@ class _VolumeButtonState extends State<VolumeButton> {
                               overlayShape: const RoundSliderOverlayShape(
                                 overlayRadius: 12,
                               ),
-                              activeTrackColor: AppColors.terracotta,
-                              inactiveTrackColor: AppColors.sandstone,
-                              thumbColor: AppColors.terracotta,
+                              activeTrackColor: const Color(0xFFE5A17D),
+                              inactiveTrackColor: widget.isDark
+                                  ? Colors.white24
+                                  : AppColors.sandstone,
+                              thumbColor: const Color(0xFFE5A17D),
                             ),
                             child: Slider(
                               min: 0,
@@ -99,10 +108,12 @@ class _VolumeButtonState extends State<VolumeButton> {
                             ),
                           ),
                         ),
-                        const Icon(
+                        Icon(
                           Icons.volume_up,
                           size: 14,
-                          color: AppColors.terracotta,
+                          color: widget.isDark
+                              ? const Color(0xFFE5A17D)
+                              : AppColors.terracotta,
                         ),
                       ],
                     );
@@ -137,7 +148,7 @@ class _VolumeButtonState extends State<VolumeButton> {
       child: IconButton(
         icon: Icon(
           _volume == 0 ? Icons.volume_off : Icons.volume_up,
-          color: AppColors.terracotta,
+          color: widget.isDark ? const Color(0xFFE5A17D) : AppColors.terracotta,
         ),
         onPressed: _toggleSlider,
         splashRadius: 20,
